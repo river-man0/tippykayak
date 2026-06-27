@@ -72,12 +72,49 @@ class Grid:
 
     @classmethod
     def named(cls, identifier: str) -> "Grid":
-        """Load a registered TMS by id, e.g. ``UPSAntarcticWGS84Quad``."""
+        """Load a grid by id.
+
+        Resolves tippykayak's built-in custom grids (e.g. ``EPSG3413``) first,
+        then falls back to morecantile's registered TileMatrixSets (e.g.
+        ``UPSAntarcticWGS84Quad``).
+        """
+        if identifier in CUSTOM_GRIDS:
+            return CUSTOM_GRIDS[identifier]()
         return cls(morecantile.tms.get(identifier))
+
+    @classmethod
+    def custom(
+        cls,
+        crs: CRS | str | int,
+        extent: list[float],
+        identifier: str,
+        *,
+        title: str | None = None,
+        max_zoom: int = 24,
+        tile_size: int = 256,
+    ) -> "Grid":
+        """Build a quad TileMatrixSet from a CRS and a (square) CRS-space extent.
+
+        This is how tippykayak supports projections morecantile doesn't ship, such
+        as the Arctic grids EPSG:3413 and EPSG:3573. A square extent yields a clean
+        power-of-two quad (one tile at zoom 0), which is what the viewer's tile
+        grid reconstruction assumes.
+        """
+        crs = crs if isinstance(crs, CRS) else CRS.from_user_input(crs)
+        tms = morecantile.TileMatrixSet.custom(
+            list(extent),
+            crs,
+            id=identifier,
+            title=title or identifier,
+            maxzoom=max_zoom,
+            tile_width=tile_size,
+            tile_height=tile_size,
+        )
+        return cls(tms)
 
     @staticmethod
     def list_named() -> list[str]:
-        return morecantile.tms.list()
+        return sorted(CUSTOM_GRIDS) + morecantile.tms.list()
 
     @property
     def id(self) -> str:
@@ -130,3 +167,27 @@ class Grid:
             "tile_size": z0.tile_size,
             "crs_bounds": list(self.crs_bounds()),
         }
+
+
+# tippykayak's built-in custom grids for projections morecantile doesn't ship.
+#
+# EPSG:3413 — NSIDC Sea Ice Polar Stereographic North. The extent (±4194304 m) is
+# NASA GIBS's: a power-of-two square that frames the Arctic landmasses.
+# EPSG:3573 — North Pole LAEA (Canada). The extent (±4889334.8765 m) places the
+# grid edge at exactly 45°N, matching ArcticConnect's 45–90°N coverage.
+CUSTOM_GRIDS: dict[str, "callable"] = {
+    "EPSG3413": lambda: Grid.custom(
+        3413,
+        [-4194304.0, -4194304.0, 4194304.0, 4194304.0],
+        "EPSG3413",
+        title="NSIDC Sea Ice Polar Stereographic North",
+        max_zoom=18,
+    ),
+    "EPSG3573": lambda: Grid.custom(
+        3573,
+        [-4889334.8765, -4889334.8765, 4889334.8765, 4889334.8765],
+        "EPSG3573",
+        title="North Pole LAEA (Canada / Beringia)",
+        max_zoom=18,
+    ),
+}

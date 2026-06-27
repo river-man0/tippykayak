@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .aggregate import Accumulation, Aggregation
 from .pipeline import build
 from .tiler import TileOptions
 from .tms import Grid
@@ -31,8 +32,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--extent", type=int, default=4096, help="MVT tile extent.")
     p.add_argument("--simplify-pixels", type=float, default=1.0, help="Douglas-Peucker tolerance in pixels.")
     p.add_argument("--min-feature-pixels", type=float, default=1.5, help="Drop features smaller than this (px). 0 disables.")
-    p.add_argument("--point-retain", type=float, default=1.0, help="Per-zoom point retention factor (1.0 = keep all).")
+    p.add_argument("--point-retain", type=float, default=1.0, help="Per-zoom point retention factor (1.0 = keep all). Ignored when --cluster is set.")
     p.add_argument("--buffer-pixels", type=float, default=8.0, help="Tile edge buffer in pixels.")
+
+    agg = p.add_argument_group("point aggregation (clustering)")
+    agg.add_argument("--cluster", action="store_true", help="Cluster nearby points into counted representatives.")
+    agg.add_argument("--cluster-distance", type=float, default=32.0, help="Cluster cell size in pixels (default 32).")
+    agg.add_argument("--cluster-count-property", default="point_count", help="Property holding the cluster size.")
+    agg.add_argument(
+        "--accumulate",
+        action="append",
+        default=[],
+        metavar="OP:FIELD[:OUT]",
+        help="Accumulate a numeric field over each cluster. OP is sum|mean|min|max|count. Repeatable.",
+    )
     return p
 
 
@@ -48,6 +61,12 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().error("input and output are required (unless --list-tms)")
 
     grid = Grid.named(args.tms)
+    aggregation = Aggregation(
+        enabled=args.cluster,
+        distance_pixels=args.cluster_distance,
+        count_property=args.cluster_count_property,
+        accumulate=tuple(Accumulation.parse(spec) for spec in args.accumulate),
+    )
     options = TileOptions(
         layer=args.layer,
         min_zoom=args.minzoom,
@@ -57,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         min_feature_pixels=args.min_feature_pixels,
         point_retain_per_zoom=args.point_retain,
         buffer_pixels=args.buffer_pixels,
+        aggregation=aggregation,
     )
 
     result = build(

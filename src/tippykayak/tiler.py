@@ -4,7 +4,7 @@ This is tippykayak's answer to the three things Tippecanoe does so well —
 *simplify*, *drop*, *aggregate* — except every decision is made in the projected
 space of an arbitrary TileMatrixSet rather than Web Mercator.
 
-v0 implements:
+It implements:
 
 * **simplify** — Douglas-Peucker, with a tolerance scaled to each zoom's ground
   resolution, so detail is shed smoothly as you zoom out.
@@ -12,21 +12,22 @@ v0 implements:
   emitted there; they "switch on" at the first zoom where they're big enough.
 * **drop (density)** — point features are thinned with a deterministic, zoom-
   stable dot-dropping gate (a point shown at zoom z is always shown at z+1).
-
-Aggregation (clustering dropped points into the survivors) is left as a
-documented next step; the hooks for it live in :class:`TileOptions`.
+* **aggregate** — alternatively, points are clustered (see :mod:`.aggregate`),
+  merging nearby points into representatives that carry a count and accumulated
+  attributes instead of being thrown away.
 """
 
 from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
+from .aggregate import Aggregation, cluster_points
 from .features import Feature
 from .tms import Grid
 
@@ -49,15 +50,23 @@ class TileOptions:
     # Tile edge buffer, in pixels, so features straddling tile borders render
     # without seams.
     buffer_pixels: float = 8.0
+    # Point clustering / attribute aggregation. When enabled it replaces the
+    # dot-dropping below for point features.
+    aggregation: Aggregation = field(default_factory=Aggregation)
 
 
 # A tile keyed by (z, x, y); value maps layer name -> list of (geometry, props).
 TilePyramid = dict[tuple[int, int, int], dict[str, list[tuple[BaseGeometry, dict]]]]
 
+_POINT_TYPES = ("Point", "MultiPoint")
+
 
 def build_tiles(grid: Grid, features: Iterable[Feature], options: TileOptions) -> TilePyramid:
     feats = list(features)
+    points = [f for f in feats if f.geometry.geom_type in _POINT_TYPES]
+    shapes = [f for f in feats if f.geometry.geom_type not in _POINT_TYPES]
     pyramid: TilePyramid = defaultdict(lambda: defaultdict(list))
+    agg = options.aggregation
 
     for z in range(options.min_zoom, options.max_zoom + 1):
         zg = grid.zoom(z)
@@ -65,31 +74,39 @@ def build_tiles(grid: Grid, features: Iterable[Feature], options: TileOptions) -
         size_threshold = options.min_feature_pixels * zg.resolution
         buffer_crs = options.buffer_pixels * zg.resolution
 
-        for feat in feats:
-            if not _visible_at(feat, z, options, size_threshold):
+        # Lines and polygons: size-based dropping + per-zoom simplification.
+        for feat in shapes:
+            if not _shape_visible_at(feat, z, options, size_threshold):
                 continue
-
             geom = feat.geometry
-            if tol > 0 and geom.geom_type not in ("Point", "MultiPoint"):
+            if tol > 0:
                 simplified = geom.simplify(tol, preserve_topology=True)
                 if not simplified.is_empty:
                     geom = simplified
-
             for (col, row), clipped in _split_into_tiles(geom, zg, buffer_crs):
+                pyramid[(z, col, row)][options.layer].append((clipped, feat.properties))
+
+        # Points: cluster-aggregate, or fall back to zoom-stable dot-dropping.
+        zoom_points = [
+            p for p in points
+            if p.forced_min_zoom is None or z >= p.forced_min_zoom
+        ]
+        if agg.enabled:
+            cell = agg.distance_pixels * zg.resolution
+            rendered = cluster_points(zoom_points, cell, agg)
+        else:
+            rendered = [p for p in zoom_points if _point_survives(p, z, options)]
+        for feat in rendered:
+            for (col, row), clipped in _split_into_tiles(feat.geometry, zg, buffer_crs):
                 pyramid[(z, col, row)][options.layer].append((clipped, feat.properties))
 
     # Drop the defaultdict machinery for a plain dict result.
     return {k: {ln: v for ln, v in layers.items()} for k, layers in pyramid.items()}
 
 
-def _visible_at(feat: Feature, z: int, options: TileOptions, size_threshold: float) -> bool:
+def _shape_visible_at(feat: Feature, z: int, options: TileOptions, size_threshold: float) -> bool:
     if feat.forced_min_zoom is not None and z < feat.forced_min_zoom:
         return False
-
-    is_point = feat.geometry.geom_type in ("Point", "MultiPoint")
-    if is_point:
-        return _point_survives(feat, z, options)
-
     # Size-based dropping for lines/polygons.
     if options.min_feature_pixels > 0 and z < options.max_zoom:
         if feat.extent < size_threshold:

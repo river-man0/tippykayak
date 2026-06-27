@@ -69,6 +69,15 @@ def _vector_layers(features: list[Feature], options: TileOptions) -> list[dict]:
     for feat in features:
         for key, value in feat.properties.items():
             fields.setdefault(key, _json_field_type(value))
+
+    # Fields synthesised by clustering aren't on the source features, so declare
+    # them explicitly.
+    agg = options.aggregation
+    if agg.enabled:
+        fields[agg.count_property] = "Number"
+        for acc in agg.accumulate:
+            fields[acc.out] = "Number"
+
     return [
         {
             "id": options.layer,

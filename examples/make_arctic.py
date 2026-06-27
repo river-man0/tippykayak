@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Generate a points-heavy Arctic dataset and build clustered PMTiles for it on
-both Arctic grids: EPSG:3413 (NSIDC polar stereographic) and EPSG:3573 (North
-Pole LAEA).
+"""Build the Arctic demo: real coastlines for context + clustered settlements,
+tiled on both Arctic grids (EPSG:3413 and EPSG:3573).
 
-The data is ~600 synthetic "settlements" scattered around the circumpolar
-landmasses, each with a population. Clustering aggregates them into counted,
-population-summed representatives that split apart as you zoom in — Tippecanoe's
-*aggregate* behaviour, on a non-WebMercator grid.
+Land comes from ``examples/data/arctic_land.geojson`` (Natural Earth 50m, public
+domain, clipped to lat >= 40). Settlements are sampled *inside* the land polygons
+so the clusters sit on land rather than floating in the ocean, each with a
+log-normal population used to weight the cluster centroids and to accumulate.
 
 Run:  python examples/make_arctic.py
 """
@@ -14,69 +13,75 @@ Run:  python examples/make_arctic.py
 from __future__ import annotations
 
 import json
-import math
 import random
 from pathlib import Path
+
+from shapely.geometry import Point, shape
+from shapely.ops import unary_union
+from shapely.prepared import prep
 
 from tippykayak import Accumulation, Aggregation, Grid, TileOptions, build
 
 HERE = Path(__file__).resolve().parent
+LAND = HERE / "data" / "arctic_land.geojson"
 GEOJSON = HERE / "arctic.geojson"
 
-# Rough circumpolar clusters: (centre lon, centre lat, spread°, how many).
-REGIONS = [
-    ("West Greenland", -50, 67, 6, 70),
-    ("Nunavut", -95, 68, 10, 80),
-    ("Alaska North Slope", -150, 69, 8, 60),
-    ("Chukotka", 175, 67, 9, 50),
-    ("Taymyr / Siberia", 95, 72, 12, 70),
-    ("Scandinavia / Kola", 25, 69, 8, 90),
-    ("Svalbard", 16, 78, 3, 30),
-    ("Iceland", -19, 65, 3, 50),
-    ("Yamal", 70, 68, 6, 50),
-]
+N_SETTLEMENTS = 700
+LAT_RANGE = (50.0, 83.0)
 
 
-def settlements() -> list[dict]:
+def load_land() -> list[dict]:
+    return json.loads(LAND.read_text())["features"]
+
+
+def sample_settlements(land_features: list[dict]) -> list[dict]:
+    land = unary_union([shape(f["geometry"]) for f in land_features])
+    on_land = prep(land)
+    minx, miny, maxx, maxy = land.bounds
+    miny, maxy = max(miny, LAT_RANGE[0]), min(maxy, LAT_RANGE[1])
+
     rng = random.Random(20240627)
-    feats = []
-    for name, lon, lat, spread, count in REGIONS:
-        for _ in range(count):
-            jlon = lon + rng.uniform(-spread, spread)
-            jlat = max(50.0, min(83.0, lat + rng.uniform(-spread / 2, spread / 2)))
-            pop = int(10 ** rng.uniform(1.5, 4.8))  # ~30 to ~60k, skewed
-            feats.append(
-                {
-                    "type": "Feature",
-                    "properties": {"kind": "settlement", "region": name, "population": pop},
-                    "geometry": {"type": "Point", "coordinates": [((jlon + 180) % 360) - 180, jlat]},
-                }
-            )
-    return feats
-
-
-def graticule() -> list[dict]:
-    feats = []
-    for lat in (60, 70, 80):
+    feats: list[dict] = []
+    attempts = 0
+    while len(feats) < N_SETTLEMENTS and attempts < N_SETTLEMENTS * 200:
+        attempts += 1
+        lon = rng.uniform(minx, maxx)
+        lat = rng.uniform(miny, maxy)
+        if not on_land.contains(Point(lon, lat)):
+            continue
+        pop = int(10 ** rng.uniform(1.5, 5.2))  # ~30 to ~160k, heavily skewed
         feats.append(
             {
                 "type": "Feature",
-                "properties": {"kind": "parallel", "lat": lat},
-                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon in range(-180, 181, 2)]},
+                "properties": {"kind": "settlement", "population": pop},
+                "geometry": {"type": "Point", "coordinates": [round(lon, 4), round(lat, 4)]},
             }
         )
     return feats
 
 
+def graticule() -> list[dict]:
+    return [
+        {
+            "type": "Feature",
+            "properties": {"kind": "parallel", "lat": lat},
+            "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon in range(-180, 181, 2)]},
+        }
+        for lat in (50, 60, 70, 80)
+    ]
+
+
 def main() -> None:
-    fc = {"type": "FeatureCollection", "features": [*graticule(), *settlements()]}
+    land = load_land()
+    settlements = sample_settlements(land)
+    fc = {"type": "FeatureCollection", "features": [*land, *graticule(), *settlements]}
     GEOJSON.write_text(json.dumps(fc))
-    n_pts = sum(1 for f in fc["features"] if f["geometry"]["type"] == "Point")
-    print(f"Wrote {GEOJSON} ({n_pts} settlements + graticule)")
+    print(f"Wrote {GEOJSON} ({len(land)} land polys, {len(settlements)} settlements)")
 
     aggregation = Aggregation(
         enabled=True,
-        distance_pixels=36,
+        distance_pixels=44,
+        weight_property="population",
         accumulate=(
             Accumulation.parse("sum:population"),
             Accumulation.parse("max:population"),
@@ -88,7 +93,13 @@ def main() -> None:
             GEOJSON,
             HERE / f"{out_name}.pmtiles",
             grid,
-            TileOptions(layer="arctic", min_zoom=0, max_zoom=7, aggregation=aggregation),
+            TileOptions(
+                layer="arctic",
+                min_zoom=0,
+                max_zoom=7,
+                simplify_pixels=1.0,
+                aggregation=aggregation,
+            ),
             name=f"Arctic settlements ({tms})",
         )
         print(f"  {tms}: {result.tile_count} tiles, z{result.min_zoom}-{result.max_zoom} -> {result.output.name}")

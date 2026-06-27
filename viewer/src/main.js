@@ -32,27 +32,45 @@ const DATASETS = [
 const status = (m) => (document.getElementById('status').textContent = m);
 let map = null;
 
+const LAND_STYLE = new Style({
+  zIndex: 0,
+  fill: new Fill({ color: 'rgba(38,58,82,0.55)' }),
+  stroke: new Stroke({ color: '#4d6f96', width: 0.75 }),
+});
+const PARALLEL_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: '#2f5a44', width: 1 }) });
+
+// Cluster fill ramps from teal (few) to warm (many), by order of magnitude.
+function clusterColor(count) {
+  if (count >= 100) return 'rgba(255,138,80,0.92)';
+  if (count >= 25) return 'rgba(255,196,86,0.9)';
+  if (count >= 5) return 'rgba(120,196,160,0.9)';
+  return 'rgba(120,180,255,0.9)';
+}
+
 function clusterStyle(feature) {
   const kind = feature.get('kind');
-  if (kind === 'parallel') {
-    return new Style({ stroke: new Stroke({ color: '#2f5a44', width: 1 }) });
-  }
+  if (kind === 'land') return LAND_STYLE;
+  if (kind === 'parallel') return PARALLEL_STYLE;
+
   const count = feature.get('point_count') || 1;
   if (count > 1) {
-    const r = 7 + 5 * Math.log10(count);
+    // Area-proportional sizing (radius ∝ √count), clamped.
+    const r = Math.min(34, 5 + 2.2 * Math.sqrt(count));
     return new Style({
+      zIndex: 2 + Math.min(count, 999),
       image: new CircleStyle({
         radius: r,
-        fill: new Fill({ color: `rgba(90,170,255,${Math.min(0.85, 0.35 + count / 200)})` }),
-        stroke: new Stroke({ color: '#cfe6ff', width: 1.25 }),
+        fill: new Fill({ color: clusterColor(count) }),
+        stroke: new Stroke({ color: '#0b1622', width: 1.25 }),
       }),
       text: new Text({
         text: String(count), font: 'bold 11px system-ui',
-        fill: new Fill({ color: '#06243f' }),
+        fill: new Fill({ color: '#0b1622' }),
       }),
     });
   }
   return new Style({
+    zIndex: 2,
     image: new CircleStyle({ radius: 3.5, fill: new Fill({ color: '#ffcc44' }), stroke: new Stroke({ color: '#3a2c00', width: 1 }) }),
   });
 }

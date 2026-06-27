@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     agg.add_argument("--cluster", action="store_true", help="Cluster nearby points into counted representatives.")
     agg.add_argument("--cluster-distance", type=float, default=32.0, help="Cluster cell size in pixels (default 32).")
     agg.add_argument("--cluster-count-property", default="point_count", help="Property holding the cluster size.")
+    agg.add_argument("--cluster-weight", default=None, metavar="FIELD", help="Weight cluster centroids by this numeric field (centre of mass).")
     agg.add_argument(
         "--accumulate",
         action="append",
@@ -65,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
         enabled=args.cluster,
         distance_pixels=args.cluster_distance,
         count_property=args.cluster_count_property,
+        weight_property=args.cluster_weight,
         accumulate=tuple(Accumulation.parse(spec) for spec in args.accumulate),
     )
     options = TileOptions(

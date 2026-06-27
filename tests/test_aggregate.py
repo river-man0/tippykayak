@@ -52,6 +52,21 @@ def test_cluster_merges_and_accumulates():
     assert merged.properties["pop_sum"] == 15
 
 
+def test_weighted_centroid_pulls_toward_heavy_point():
+    agg = Aggregation(enabled=True, weight_property="population")
+    points = [_pt(0, 0, population=1), _pt(10, 0, population=99)]
+    [cluster] = cluster_points(points, cell_size=100.0, agg=agg)
+    # Centre of mass is near the heavy point (x≈9.9), not the midpoint (5).
+    assert cluster.geometry.x > 9.0
+
+
+def test_unweighted_centroid_is_midpoint():
+    agg = Aggregation(enabled=True)
+    points = [_pt(0, 0, population=1), _pt(10, 0, population=99)]
+    [cluster] = cluster_points(points, cell_size=100.0, agg=agg)
+    assert cluster.geometry.x == pytest.approx(5.0)
+
+
 def test_clustering_conserves_point_count_across_zoom():
     grid = Grid.named("EPSG3413")
     # A dense blob of points near 80N.

@@ -60,6 +60,11 @@ class Aggregation:
     distance_pixels: float = 32.0
     count_property: str = "point_count"
     accumulate: tuple[Accumulation, ...] = field(default_factory=tuple)
+    # If set, place the cluster representative at the centre of mass weighted by
+    # this numeric attribute (e.g. population) instead of the plain centroid.
+    # (Cells are inherently zoom-nested: the cell size halves exactly each zoom
+    # and is aligned to the CRS origin, so a parent cell splits cleanly into four.)
+    weight_property: str | None = None
 
 
 def cluster_points(points: list[Feature], cell_size: float, agg: Aggregation) -> list[Feature]:
@@ -73,16 +78,29 @@ def cluster_points(points: list[Feature], cell_size: float, agg: Aggregation) ->
     return [_merge(buckets[k], agg) for k in sorted(buckets)]
 
 
+def _weight(feat: Feature, prop: str | None) -> float:
+    if prop is None:
+        return 1.0
+    v = feat.properties.get(prop)
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0:
+        return 1.0
+    return float(v)
+
+
 def _merge(members: list[Feature], agg: Aggregation) -> Feature:
     pts = [m.geometry.representative_point() for m in members]
-    centroid = Point(fmean(p.x for p in pts), fmean(p.y for p in pts))
+    weights = [_weight(m, agg.weight_property) for m in members]
+    total = sum(weights) or float(len(members))
+    cx = sum(p.x * w for p, w in zip(pts, weights)) / total
+    cy = sum(p.y * w for p, w in zip(pts, weights)) / total
+    centroid = Point(cx, cy)
 
-    # Representative attributes come from the member nearest the centroid, so the
-    # kept name/label is stable and central rather than order-dependent.
+    # Representative attributes come from the member nearest the centre of mass,
+    # so the kept name/label is stable and central rather than order-dependent.
     rep = min(
         members,
-        key=lambda m: (m.geometry.representative_point().x - centroid.x) ** 2
-        + (m.geometry.representative_point().y - centroid.y) ** 2,
+        key=lambda m: (m.geometry.representative_point().x - cx) ** 2
+        + (m.geometry.representative_point().y - cy) ** 2,
     )
     props = dict(rep.properties)
     props[agg.count_property] = len(members)

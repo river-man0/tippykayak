@@ -24,6 +24,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from shapely import make_valid
+from shapely.errors import GEOSException
 from shapely.geometry import box
 from shapely.geometry.base import BaseGeometry
 
@@ -153,7 +155,11 @@ def _split_into_tiles(geom: BaseGeometry, zg, buffer_crs: float):
                 tmaxx + buffer_crs,
                 tmaxy + buffer_crs,
             )
-            clipped = geom.intersection(clip_box)
+            try:
+                clipped = geom.intersection(clip_box)
+            except GEOSException:
+                # Last-ditch repair if simplification reintroduced invalidity.
+                clipped = make_valid(geom).intersection(clip_box)
             if clipped.is_empty:
                 continue
             yield (col, row), clipped

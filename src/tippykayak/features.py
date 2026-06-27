@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 from pyproj import CRS, Transformer
+from shapely import make_valid
 from shapely.geometry import shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as shapely_transform
@@ -77,6 +78,10 @@ def iter_features(
         if not geom:
             continue
         projected = project(shape(geom))
+        # Reprojection routinely produces self-intersections; repair once here so
+        # the per-tile clipping downstream never trips over invalid geometry.
+        if not projected.is_valid:
+            projected = make_valid(projected)
         if projected.is_empty:
             continue
         props = feat.get("properties") or {}

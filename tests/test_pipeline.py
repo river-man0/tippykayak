@@ -10,7 +10,7 @@ import pytest
 from pmtiles.reader import MmapSource, Reader
 
 from tippykayak import Grid, TileOptions, build
-from tippykayak.features import load_geojson
+from tippykayak.features import iter_features, load_geojson
 from tippykayak.tiler import build_tiles
 
 
@@ -123,3 +123,26 @@ def test_size_dropping_thins_low_zoom(geojson_file):
             for feats_list in layers.values()
         )
     assert count_at(4) >= count_at(0)
+
+
+def test_invalid_self_intersecting_polygon_is_repaired():
+    # A bow-tie polygon is invalid; reprojection-induced invalidity is common
+    # with real coastlines. The pipeline must repair rather than crash.
+    bowtie = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"kind": "land"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, -80], [10, -70], [0, -70], [10, -80], [0, -80]]],
+                },
+            }
+        ],
+    }
+    grid = Grid.named("UPSAntarcticWGS84Quad")
+    feats = list(iter_features(bowtie, grid))
+    assert feats and feats[0].geometry.is_valid
+    pyramid = build_tiles(grid, feats, TileOptions(layer="land", min_zoom=0, max_zoom=3))
+    assert len(pyramid) > 0

@@ -64,7 +64,8 @@ with morecantile as the grid backbone, paired with an OpenLayers front-end.
 
 ```
 GeoJSON (lon/lat)
-   │  reproject every geometry into the TMS's CRS (pyproj)
+   │  reproject every geometry into the TMS's CRS (pyproj), repairing any
+   │  reprojection-induced invalidity (common with real coastlines)
    ▼
 projected features ── simplify (Douglas-Peucker, scaled per-zoom)
    │               ── drop (size + zoom-stable dot-dropping)
@@ -124,14 +125,18 @@ zoom in.
 ```bash
 tippykayak settlements.geojson out.pmtiles --tms EPSG3413 \
   --cluster \
-  --cluster-distance 36 \
+  --cluster-distance 44 \
+  --cluster-weight population \
   --accumulate sum:population \
   --accumulate max:population
 ```
 
 Each `--accumulate OP:FIELD[:OUT]` adds an aggregated field (`OP` is
-`sum|mean|min|max|count`). Clusters also always get a `point_count`. The custom
-Arctic grids are built in:
+`sum|mean|min|max|count`). Clusters always get a `point_count`, and
+`--cluster-weight FIELD` places each cluster at its **centre of mass** weighted by
+that field rather than the plain centroid. Cells are inherently zoom-nested (the
+cell size halves exactly each zoom), so members stay together as you zoom. The
+custom Arctic grids are built in:
 
 | id | CRS | projection | extent |
 | --- | --- | --- | --- |
@@ -167,12 +172,13 @@ python serve.py                          # range-capable static server, port 800
 
 ![Arctic clusters rendered in OpenLayers, EPSG:3413](viewer/preview.png)
 
-The demo tiles the same ~550 synthetic Arctic settlements onto **both** Arctic
-grids — **EPSG:3413** (polar stereographic) and **EPSG:3573** (North Pole LAEA) —
-with point clustering. The viewer (a projection switcher) renders each in its
-native CRS; the bubbles are aggregated clusters labelled with their counts, and
-they split apart as you zoom in. The viewer self-configures entirely from the
-TileMatrixSet metadata embedded in each archive.
+The demo draws **Natural Earth coastlines** for context and tiles ~700 synthetic
+settlements (sampled *on land*) onto **both** Arctic grids — **EPSG:3413** (polar
+stereographic) and **EPSG:3573** (North Pole LAEA) — with population-weighted
+point clustering. The viewer (a projection switcher) renders each in its native
+CRS; the bubbles are aggregated clusters labelled with their counts, sized and
+coloured by size, and they split apart as you zoom in. The viewer self-configures
+entirely from the TileMatrixSet metadata embedded in each archive.
 
 There's also `examples/make_sample.py`, a synthetic **Antarctic** (EPSG:5042)
 scene, if you want the southern polar case.
@@ -220,7 +226,10 @@ viewer/
   dist/             pre-built, CDN-free bundle (committed)
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
-examples/           make_arctic.py (3413/3573 clusters) + make_sample.py (Antarctic)
+examples/
+  make_arctic.py    Arctic demo: coastlines + clustered settlements (3413/3573)
+  make_sample.py    Antarctic demo (EPSG:5042)
+  data/             Natural Earth land (public domain), committed source data
 tests/              pytest suite
 ```
 

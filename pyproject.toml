@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tippykayak"
+version = "0.1.0"
+description = "Generate non-WebMercator PMTiles vector tilesets on any morecantile TileMatrixSet."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "tippykayak contributors" }]
+keywords = ["pmtiles", "vector-tiles", "mvt", "morecantile", "tilematrixset", "projection", "openlayers"]
+
+dependencies = [
+    "morecantile>=5.0",
+    "pyproj>=3.4",
+    "shapely>=2.0",
+    "mapbox-vector-tile>=2.0",
+    "pmtiles>=3.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+tippykayak = "tippykayak.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/river-man0/tippykayak"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

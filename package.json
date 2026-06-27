@@ -1,0 +1,21 @@
+{
+  "name": "tippykayak-viewer",
+  "version": "0.1.0",
+  "description": "OpenLayers viewer for tippykayak non-WebMercator PMTiles.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:viewer": "esbuild viewer/src/main.js --bundle --format=esm --minify --outfile=viewer/dist/bundle.js && cp node_modules/ol/ol.css viewer/dist/ol.css",
+    "serve": "python3 serve.py"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ol": "^10.3.1",
+    "ol-pmtiles": "^2.0.2",
+    "pmtiles": "^3.2.1",
+    "proj4": "^2.11.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

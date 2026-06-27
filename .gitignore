@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.venv/
+venv/
+# Python build output (root only — viewer/dist is a committed artifact)
+/build/
+/dist/
+
+# Node
+node_modules/
+
+# Note: examples/antarctica.{geojson,pmtiles} and viewer/dist/* are committed so
+# the demo works straight after clone. Regenerate the data with
+# examples/make_sample.py and the viewer bundle with `npm run build:viewer`.
+
+# OS / editor
+.DS_Store
+*.swp

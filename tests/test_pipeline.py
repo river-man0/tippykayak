@@ -94,9 +94,11 @@ def test_build_writes_valid_pmtiles_with_tms_metadata(geojson_file, tmp_path):
         header = reader.header()
         assert header["max_zoom"] == 4
         meta = reader.metadata()
-        # The non-WebMercator CRS info must travel with the archive.
+        # The non-WebMercator CRS info must travel with the archive, including a
+        # proj4 string the front-end can configure itself from.
         assert meta["tippykayak"]["epsg"] == 5042
         assert meta["crs"] == "EPSG:5042"
+        assert meta["tippykayak"]["proj4"].startswith("+proj=stere")
 
         # The z0 tile must decode to MVT with our layer and coords in-range.
         data = reader.get(0, 0, 0)

@@ -43,7 +43,9 @@ Hilbert-ordered z/x/y archive. Its header carries zoom/bounds/center but **no CR
 field** — a reader must already know the tiling scheme. tippykayak therefore
 embeds the full TileMatrixSet description in the metadata JSON (the
 `crs` / `tile_origin_upper_left_x|y` / `tile_dimension_zoom_0` convention from
-the tippecanoe TMS discussions), so a projection-aware client can self-configure.
+the tippecanoe TMS discussions) **plus a `proj4` string and WKT**, so a
+projection-aware client can configure itself for any CRS — even one it has never
+seen — with no hardcoded lookup table.
 
 ### 3. You can't get there by wrapping Tippecanoe
 
@@ -175,13 +177,31 @@ python serve.py                          # range-capable static server, port 800
 The demo draws **Natural Earth coastlines** for context and tiles ~700 synthetic
 settlements (sampled *on land*) onto **both** Arctic grids — **EPSG:3413** (polar
 stereographic) and **EPSG:3573** (North Pole LAEA) — with population-weighted
-point clustering. The viewer (a projection switcher) renders each in its native
-CRS; the bubbles are aggregated clusters labelled with their counts, sized and
-coloured by size, and they split apart as you zoom in. The viewer self-configures
-entirely from the TileMatrixSet metadata embedded in each archive.
+point clustering. The bubbles are aggregated clusters labelled with their counts,
+sized and coloured by size, and they split apart as you zoom in.
 
 There's also `examples/make_sample.py`, a synthetic **Antarctic** (EPSG:5042)
 scene, if you want the southern polar case.
+
+## The viewer
+
+`viewer/` is a **reusable** OpenLayers front-end for non-WebMercator PMTiles — not
+just the demo. It opens *any* tippykayak archive and configures itself from the
+metadata the tiler embeds: the **proj4 string** (registered with proj4js), the
+tile grid (origin + zoom-0 span), the CRS extent, and the layer list. No
+per-dataset code and no hardcoded CRS table — point it at an archive in a
+projection it has never seen and it just works.
+
+Open an archive four ways:
+
+- the **demo** quick-picks (Arctic ×2, Antarctic),
+- a remote **URL** (needs CORS + HTTP Range on the host),
+- a **local `.pmtiles` file** (picker or drag-and-drop onto the map),
+- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/arctic-3573.pmtiles`.
+
+Styling adapts to geometry type — polygons filled, lines stroked, points as dots,
+and `point_count` clusters as graduated, count-labelled bubbles. The pre-built,
+CDN-free bundle lives in `viewer/dist/`; rebuild with `npm run build:viewer`.
 
 > **Why not `python -m http.server`?** PMTiles is read with HTTP **Range**
 > requests, which Python's stock server ignores — it returns the whole file and
@@ -222,7 +242,7 @@ src/tippykayak/
   pipeline.py   end-to-end orchestration
   cli.py        command-line entry point
 viewer/
-  src/main.js       OpenLayers + proj4 + ol-pmtiles viewer (projection switcher)
+  src/main.js       reusable OpenLayers viewer (URL / file / ?src=, self-configuring)
   dist/             pre-built, CDN-free bundle (committed)
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)

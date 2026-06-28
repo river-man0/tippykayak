@@ -3,34 +3,62 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>tippykayak — Arctic PMTiles viewer (OpenLayers)</title>
+  <title>tippykayak — non-WebMercator PMTiles viewer (OpenLayers)</title>
   <link rel="stylesheet" href="./dist/ol.css" />
   <style>
     html, body { margin: 0; height: 100%; background: #0b1622; color: #cfe3f7; font: 14px/1.4 system-ui, sans-serif; }
     #map { position: absolute; inset: 0; }
     #panel {
-      position: absolute; top: 12px; left: 12px; z-index: 1; max-width: 340px;
-      background: rgba(11,22,34,.85); border: 1px solid #1d3a52; border-radius: 8px;
+      position: absolute; top: 12px; left: 12px; z-index: 1; width: 320px;
+      background: rgba(11,22,34,.88); border: 1px solid #1d3a52; border-radius: 8px;
       padding: 12px 14px; backdrop-filter: blur(4px);
     }
-    #panel h1 { font-size: 15px; margin: 0 0 6px; }
-    #switcher { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
-    #switcher button {
+    #panel h1 { font-size: 15px; margin: 0 0 4px; }
+    #panel p.lede { margin: 0 0 10px; color: #9bb4cc; font-size: 12px; }
+    .group { margin: 10px 0; }
+    .group > label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6f8aa6; margin-bottom: 5px; }
+    #demos { display: flex; flex-direction: column; gap: 6px; }
+    #demos button {
       text-align: left; cursor: pointer; padding: 6px 9px; border-radius: 6px;
       border: 1px solid #244563; background: #122436; color: #cfe3f7; font: inherit;
     }
-    #switcher button.active { border-color: #5aa9ff; background: #1c3d5c; }
-    #status { margin-top: 6px; font-size: 12px; color: #9bb4cc; white-space: pre-line; }
+    #demos button.active { border-color: #5aa9ff; background: #1c3d5c; }
+    .row { display: flex; gap: 6px; }
+    #url { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 6px; border: 1px solid #244563; background: #0d1b2a; color: #cfe3f7; font: inherit; }
+    #load, .filebtn { padding: 6px 10px; border-radius: 6px; border: 1px solid #244563; background: #122436; color: #cfe3f7; cursor: pointer; font: inherit; }
+    .filebtn { display: inline-block; }
+    #file { display: none; }
+    .hint { color: #6f8aa6; font-size: 11px; margin-top: 4px; }
+    #status { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1d3a52; font-size: 12px; color: #9bb4cc; }
+    #status code { color: #8fd0ff; }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div id="panel">
-    <h1>tippykayak · Arctic clusters</h1>
-    <div>Natural Earth coastlines + ~700 settlements, tiled and point-clustered on
-      two Arctic CRSs. Bubble numbers are aggregated counts (centroids weighted by
-      population) — zoom in and clusters split apart.</div>
-    <div id="switcher"></div>
+    <h1>tippykayak viewer</h1>
+    <p class="lede">Renders non-WebMercator vector PMTiles in their native CRS.
+      Open any tippykayak archive — it self-configures from the embedded
+      TileMatrixSet metadata.</p>
+
+    <div class="group">
+      <label>Demos</label>
+      <div id="demos"></div>
+    </div>
+
+    <div class="group">
+      <label>Open an archive</label>
+      <div class="row">
+        <input id="url" type="text" placeholder="https://…/archive.pmtiles" />
+        <button id="load">Load</button>
+      </div>
+      <div class="hint">
+        …or <label class="filebtn" for="file">choose a .pmtiles file</label> /
+        drag one onto the map. Remote URLs need CORS + HTTP Range.
+      </div>
+      <input id="file" type="file" accept=".pmtiles" />
+    </div>
+
     <div id="status">loading…</div>
   </div>
   <script type="module" src="./dist/bundle.js"></script>

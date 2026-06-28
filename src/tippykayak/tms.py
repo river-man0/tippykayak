@@ -13,10 +13,19 @@ in Web Mercator. That is the whole point of the project.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import morecantile
 from pyproj import CRS
+
+
+def _to_proj4(crs: CRS) -> str:
+    """proj4 string for the front-end. The lossy-conversion warning is expected
+    and harmless for the projected CRSs tippykayak targets."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return crs.to_proj4()
 
 # OGC standardised rendering pixel size, in metres (0.28 mm). morecantile stores
 # zoom levels as scale denominators; multiplying by this constant recovers the
@@ -161,6 +170,11 @@ class Grid:
             "crs": self.crs.to_string(),
             "crs_uri": self.tms.crs.srs,
             "epsg": self.crs.to_epsg(),
+            # A proj4 string the front-end can hand straight to proj4js, so the
+            # viewer can configure *any* tippykayak archive's projection without a
+            # hardcoded CRS table — even CRSs it has never seen.
+            "proj4": _to_proj4(self.crs),
+            "wkt": self.crs.to_wkt(),
             "tile_origin_upper_left_x": z0.origin_x,
             "tile_origin_upper_left_y": z0.origin_y,
             "tile_dimension_zoom_0": z0.tile_span,

@@ -83,9 +83,9 @@ class Grid:
     def named(cls, identifier: str) -> "Grid":
         """Load a grid by id.
 
-        Resolves tippykayak's built-in custom grids (e.g. ``EPSG3413``) first,
+        Resolves tippykayak's built-in custom grids (e.g. ``EPSG3978``) first,
         then falls back to morecantile's registered TileMatrixSets (e.g.
-        ``UPSAntarcticWGS84Quad``).
+        ``WorldCRS84Quad``).
         """
         if identifier in CUSTOM_GRIDS:
             return CUSTOM_GRIDS[identifier]()
@@ -167,6 +167,7 @@ class Grid:
         z0 = self.zoom(self.min_zoom)
         return {
             "tilematrixset": self.id,
+            "title": self.tms.title,
             "crs": self.crs.to_string(),
             "crs_uri": self.tms.crs.srs,
             "epsg": self.crs.to_epsg(),
@@ -189,6 +190,9 @@ class Grid:
 # NASA GIBS's: a power-of-two square that frames the Arctic landmasses.
 # EPSG:3573 — North Pole LAEA (Canada). The extent (±4889334.8765 m) places the
 # grid edge at exactly 45°N, matching ArcticConnect's 45–90°N coverage.
+# EPSG:3978 — NAD83 / Canada Atlas Lambert (conformal conic). A square extent that
+# snugly frames the Canadian landmass; data is fitted to its own bounds, so the
+# generous south padding stays empty (and untiled).
 CUSTOM_GRIDS: dict[str, "callable"] = {
     "EPSG3413": lambda: Grid.custom(
         3413,
@@ -202,6 +206,13 @@ CUSTOM_GRIDS: dict[str, "callable"] = {
         [-4889334.8765, -4889334.8765, 4889334.8765, 4889334.8765],
         "EPSG3573",
         title="North Pole LAEA (Canada / Beringia)",
+        max_zoom=18,
+    ),
+    "EPSG3978": lambda: Grid.custom(
+        3978,
+        [-3970000.0, -2270000.0, 3630000.0, 5330000.0],
+        "EPSG3978",
+        title="NAD83 / Canada Atlas Lambert",
         max_zoom=18,
     ),
 }

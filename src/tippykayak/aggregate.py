@@ -1,11 +1,10 @@
-"""Point clustering / attribute aggregation.
+"""Point clustering / attribute aggregation — the *aggregate* step.
 
-This is tippykayak's take on Tippecanoe's *aggregate* step. Instead of merely
-dropping points as you zoom out (which throws information away), clustering merges
-nearby points into a single representative point that carries a ``point_count``
-and any accumulated attributes (sum / mean / min / max of a numeric field). Zoom
-in and the cells shrink until, at the deepest zoom, almost every cluster is a
-single original point again.
+Instead of merely dropping points as you zoom out (which throws information
+away), clustering merges nearby points into a single representative point that
+carries a ``point_count`` and any accumulated attributes (sum / mean / min / max
+of a numeric field). Zoom in and the cells shrink until, at the deepest zoom,
+almost every cluster is a single original point again.
 
 Clustering happens globally in the grid CRS at each zoom (not per tile), so a
 cluster never splits across a tile boundary.

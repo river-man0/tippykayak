@@ -2,17 +2,16 @@
 
 **Non-WebMercator PMTiles, built on [morecantile](https://developmentseed.org/morecantile/) TileMatrixSets.**
 
-[Tippecanoe](https://github.com/felt/tippecanoe) makes gorgeous Web Mercator
-vector tiles — it simplifies, drops, and aggregates large geographic datasets
-into beautiful, well-balanced tile pyramids. But it only ever emits the
-**WebMercatorQuad** tiling scheme. tippykayak fills that gap: it generates
-PMTiles on *any* OGC TileMatrixSet — **polar** or **geographic** — so you can
-tile and render data in a CRS where Web Mercator is wrong, like the Arctic
-(EPSG:3413 / EPSG:3573) and Antarctic.
+Most vector-tile tooling only ever emits the **Web Mercator** (`WebMercatorQuad`)
+tiling scheme. tippykayak generates beautiful, well-balanced PMTiles on *any* OGC
+TileMatrixSet — **polar** or **geographic** — so you can tile and render data in a
+CRS where Web Mercator is wrong: the Arctic (EPSG:3413 / EPSG:3573), Canada Atlas
+Lambert (EPSG:3978), and beyond. It simplifies, drops, and clusters large datasets
+entirely in the projected space of the chosen grid.
 
 ```bash
 pip install -e .
-tippykayak data.geojson out.pmtiles --tms UPSAntarcticWGS84Quad --maxzoom 8
+tippykayak sites.geojson out.pmtiles --tms EPSG3978 --maxzoom 8
 ```
 
 ---
@@ -41,21 +40,18 @@ So tippykayak ships an **OpenLayers** viewer (`viewer/index.html`).
 The [PMTiles](https://docs.protomaps.com/pmtiles/) format is just a
 Hilbert-ordered z/x/y archive. Its header carries zoom/bounds/center but **no CRS
 field** — a reader must already know the tiling scheme. tippykayak therefore
-embeds the full TileMatrixSet description in the metadata JSON (the
-`crs` / `tile_origin_upper_left_x|y` / `tile_dimension_zoom_0` convention from
-the tippecanoe TMS discussions) **plus a `proj4` string and WKT**, so a
-projection-aware client can configure itself for any CRS — even one it has never
-seen — with no hardcoded lookup table.
+embeds the full TileMatrixSet description in the metadata JSON (a
+`crs` / `tile_origin_upper_left_x|y` / `tile_dimension_zoom_0` convention) **plus
+a `proj4` string and WKT**, so a projection-aware client can configure itself for
+any CRS — even one it has never seen — with no hardcoded lookup table.
 
-### 3. You can't get there by wrapping Tippecanoe
+### 3. Non-Mercator output has to be generated natively
 
-felt/tippecanoe has an [open, unimplemented issue (#286)](https://github.com/felt/tippecanoe/issues/286)
-to accept a TileMatrixSet; today output is always WebMercatorQuad. The only known
-"trick" — pre-warping coordinates to fake EPSG:4326 output — breaks tile
-addressing ([#739](https://github.com/mapbox/tippecanoe/issues/739)) and
-**cannot** express azimuthal/polar projections, because you can't make Mercator's
-fixed math emulate polar stereographic. The projections that make this project
-worthwhile are exactly the ones the wrapper trick can't reach.
+The common trick for bending a Web-Mercator-only tiler — pre-warping coordinates
+to fake EPSG:4326 output — breaks tile addressing and **cannot** express
+azimuthal/polar or conic projections: you can't make Mercator's fixed math
+emulate polar stereographic or Lambert conformal conic. So the tiling, simplify,
+drop, and clustering all have to happen in the target CRS from the start.
 
 **Conclusion:** tippykayak is a from-scratch, projection-agnostic tiler in Python
 with morecantile as the grid backbone, paired with an OpenLayers front-end.
@@ -86,7 +82,7 @@ Every decision — tile placement, simplification tolerance, feature size
 thresholds — is made in the **projected CRS units** of the chosen grid, never in
 Web Mercator. That is the whole point.
 
-| Tippecanoe feature | tippykayak |
+| Capability | tippykayak |
 | --- | --- |
 | Simplify | ✅ Douglas-Peucker, tolerance scaled to each zoom's ground resolution |
 | Drop (by size) | ✅ features smaller than ~N pixels switch on at the first zoom they're visible |
@@ -108,12 +104,12 @@ tippykayak --list-tms
 tippykayak data.geojson out.pmtiles --tms EPSG3413 --maxzoom 8
 tippykayak data.geojson out.pmtiles --tms EPSG3573 --maxzoom 8
 
-# Antarctic polar stereographic (EPSG:5042) / plain WGS84
-tippykayak data.geojson out.pmtiles --tms UPSAntarcticWGS84Quad
+# Canada Atlas Lambert (EPSG:3978, conic) / plain WGS84
+tippykayak data.geojson out.pmtiles --tms EPSG3978 --maxzoom 8
 tippykayak data.geojson out.pmtiles --tms WorldCRS84Quad
 
 # Tuning the simplify/drop behaviour
-tippykayak data.geojson out.pmtiles --tms UPSArcticWGS84Quad \
+tippykayak data.geojson out.pmtiles --tms EPSG3413 \
   --simplify-pixels 1.0 --min-feature-pixels 1.5 --point-retain 0.6
 ```
 
@@ -137,13 +133,14 @@ Each `--accumulate OP:FIELD[:OUT]` adds an aggregated field (`OP` is
 `sum|mean|min|max|count`). Clusters always get a `point_count`, and
 `--cluster-weight FIELD` places each cluster at its **centre of mass** weighted by
 that field rather than the plain centroid. Cells are inherently zoom-nested (the
-cell size halves exactly each zoom), so members stay together as you zoom. The
-custom Arctic grids are built in:
+cell size halves exactly each zoom), so members stay together as you zoom. These
+custom grids are built in (alongside everything morecantile ships):
 
 | id | CRS | projection | extent |
 | --- | --- | --- | --- |
 | `EPSG3413` | EPSG:3413 | NSIDC polar stereographic (true at 70°N) | ±4 194 304 m (NASA GIBS) |
 | `EPSG3573` | EPSG:3573 | North Pole LAEA (Canada, lon₀ −100°) | ±4 889 334.88 m (edge at 45°N) |
+| `EPSG3978` | EPSG:3978 | NAD83 / Canada Atlas Lambert (conformal conic) | square, framing Canada |
 
 ### Python
 
@@ -167,21 +164,20 @@ build("settlements.geojson", "out.pmtiles", grid,
 
 ```bash
 pip install -e .
-python examples/make_arctic.py           # ~550 settlements → arctic-3413 + arctic-3573 PMTiles
+python examples/make_canada.py           # infrastructure sites → canada-3978 PMTiles
+python examples/make_arctic.py           # settlements → arctic-3413 + arctic-3573 PMTiles
 python serve.py                          # range-capable static server, port 8000
 # open http://localhost:8000/viewer/index.html
 ```
 
-![Arctic clusters rendered in OpenLayers, EPSG:3413](viewer/preview.png)
+![Canadian infrastructure on EPSG:3978, rendered in OpenLayers](viewer/preview.png)
 
-The demo draws **Natural Earth coastlines** for context and tiles ~700 synthetic
-settlements (sampled *on land*) onto **both** Arctic grids — **EPSG:3413** (polar
-stereographic) and **EPSG:3573** (North Pole LAEA) — with population-weighted
-point clustering. The bubbles are aggregated clusters labelled with their counts,
-sized and coloured by size, and they split apart as you zoom in.
-
-There's also `examples/make_sample.py`, a synthetic **Antarctic** (EPSG:5042)
-scene, if you want the southern polar case.
+The flagship demo draws **Natural Earth coastlines** for context and tiles ~720
+synthetic infrastructure sites (sampled *on land*) onto **EPSG:3978** (Canada
+Atlas Lambert). Dense areas glow as density-coloured clusters; individual sites
+show a glyph for their category — airport, power, radio, or military. The Arctic
+demo does the same on **EPSG:3413** (polar stereographic) and **EPSG:3573** (North
+Pole LAEA). Clusters split apart as you zoom in.
 
 ## The viewer
 
@@ -194,14 +190,16 @@ projection it has never seen and it just works.
 
 Open an archive four ways:
 
-- the **demo** quick-picks (Arctic ×2, Antarctic),
+- the **demo** quick-picks (Canada Lambert + Arctic ×2),
 - a remote **URL** (needs CORS + HTTP Range on the host),
 - a **local `.pmtiles` file** (picker or drag-and-drop onto the map),
-- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/arctic-3573.pmtiles`.
+- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/canada-3978.pmtiles`.
 
-Styling adapts to geometry type — polygons filled, lines stroked, points as dots,
-and `point_count` clusters as graduated, count-labelled bubbles. The pre-built,
-CDN-free bundle lives in `viewer/dist/`; rebuild with `npm run build:viewer`.
+Styling adapts to geometry type — polygons filled, lines stroked. Point
+`point_count` clusters render as soft, density-coloured **glow** blobs (gently
+sized, no labels); at the deepest zoom, individual sites show a **category glyph**.
+The pre-built, CDN-free bundle lives in `viewer/dist/`; rebuild with
+`npm run build:viewer`.
 
 > **Why not `python -m http.server`?** PMTiles is read with HTTP **Range**
 > requests, which Python's stock server ignores — it returns the whole file and
@@ -222,18 +220,18 @@ npm run build:viewer
 
 ## Status
 
-The end-to-end path (GeoJSON → polar/geographic PMTiles → OpenLayers) works and is
-verified (pytest for the tiler + clustering; headless-browser render check for the
-viewer on both Arctic grids). Simplify, both drop strategies, and **clustering
-aggregation** are implemented, on any morecantile or custom TileMatrixSet. Next on
-the roadmap: FlatGeobuf input, polygon-area-aware dropping, and label-collision
-handling in the viewer.
+The end-to-end path (GeoJSON → polar/geographic/conic PMTiles → OpenLayers) works
+and is verified (pytest for the tiler + clustering; headless-browser render checks
+for the viewer across the Canada and Arctic grids). Simplify, both drop
+strategies, and **clustering aggregation** are implemented, on any morecantile or
+custom TileMatrixSet. Next on the roadmap: FlatGeobuf input, polygon-area-aware
+dropping, and label-collision handling in the viewer.
 
 ## Layout
 
 ```
 src/tippykayak/
-  tms.py        grid math on morecantile + custom grids (EPSG3413/EPSG3573)
+  tms.py        grid math on morecantile + custom grids (EPSG3413/3573/3978)
   features.py   load GeoJSON, reproject into the grid CRS
   tiler.py      simplify / drop / cluster / clip → tile pyramid
   aggregate.py  point clustering + attribute accumulation
@@ -247,8 +245,8 @@ viewer/
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
+  make_canada.py    Canada demo: coastlines + categorised sites (EPSG:3978)
   make_arctic.py    Arctic demo: coastlines + clustered settlements (3413/3573)
-  make_sample.py    Antarctic demo (EPSG:5042)
   data/             Natural Earth land (public domain), committed source data
 tests/              pytest suite
 ```

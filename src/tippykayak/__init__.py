@@ -1,9 +1,10 @@
 """tippykayak — non-WebMercator PMTiles, built on morecantile TileMatrixSets.
 
-Tippecanoe makes gorgeous Web Mercator vector tiles. tippekayak fills the gap it
-leaves: generating PMTiles on *any* OGC TileMatrixSet — polar or geographic,
-including the Arctic grids EPSG:3413 and EPSG:3573 — for rendering in a
-projection-aware client such as OpenLayers.
+Most vector-tile tooling only ever emits the Web Mercator (EPSG:3857) tiling
+scheme. tippykayak generates PMTiles on *any* OGC TileMatrixSet — polar or
+geographic, including the Arctic grids EPSG:3413 / EPSG:3573 and Canada Atlas
+Lambert (EPSG:3978) — for rendering in a projection-aware client such as
+OpenLayers.
 """
 
 from .aggregate import Accumulation, Aggregation

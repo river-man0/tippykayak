@@ -1,8 +1,8 @@
 """The core tiler: turn projected features into a tile pyramid.
 
-This is tippykayak's answer to the three things Tippecanoe does so well —
-*simplify*, *drop*, *aggregate* — except every decision is made in the projected
-space of an arbitrary TileMatrixSet rather than Web Mercator.
+It does the three things a good vector-tile generator must — *simplify*, *drop*,
+*aggregate* — except every decision is made in the projected space of an
+arbitrary TileMatrixSet rather than Web Mercator.
 
 It implements:
 

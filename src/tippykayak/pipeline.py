@@ -43,6 +43,7 @@ def build(
     for (z, col, row), layers in pyramid.items():
         encoded[(z, col, row)] = encode_tile(layers, col, row, grid.zoom(z), options.extent)
 
+    data_extent = _projected_extent(features)
     write_pmtiles(
         output_path,
         encoded,
@@ -50,7 +51,8 @@ def build(
         min_zoom=options.min_zoom,
         max_zoom=options.max_zoom,
         vector_layers=_vector_layers(features, options),
-        geographic_bounds=_geographic_bounds(features, grid),
+        geographic_bounds=_geographic_bounds(data_extent, grid),
+        data_extent=data_extent,
         name=name,
     )
 
@@ -96,15 +98,20 @@ def _json_field_type(value) -> str:
     return "String"
 
 
-def _geographic_bounds(features: list[Feature], grid: Grid) -> tuple[float, float, float, float]:
-    """Inverse-project the data's CRS-space extent back to lon/lat for the header."""
+def _projected_extent(features: list[Feature]) -> tuple[float, float, float, float]:
+    """The data's bounding box in the grid's projected CRS (CRS units)."""
     minx = miny = float("inf")
     maxx = maxy = float("-inf")
     for f in features:
         fx0, fy0, fx1, fy1 = f.geometry.bounds
         minx, miny = min(minx, fx0), min(miny, fy0)
         maxx, maxy = max(maxx, fx1), max(maxy, fy1)
+    return (minx, miny, maxx, maxy)
 
+
+def _geographic_bounds(extent: tuple[float, float, float, float], grid: Grid) -> tuple[float, float, float, float]:
+    """Inverse-project the data's CRS-space extent back to lon/lat for the header."""
+    minx, miny, maxx, maxy = extent
     to_geographic = Transformer.from_crs(grid.crs, CRS.from_epsg(4326), always_xy=True)
     lons, lats = to_geographic.transform(
         [minx, maxx, minx, maxx],

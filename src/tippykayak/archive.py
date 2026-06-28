@@ -27,6 +27,7 @@ def write_pmtiles(
     max_zoom: int,
     vector_layers: list[dict],
     geographic_bounds: tuple[float, float, float, float],
+    data_extent: tuple[float, float, float, float] | None = None,
     name: str = "tippykayak",
 ) -> None:
     min_lon, min_lat, max_lon, max_lat = geographic_bounds
@@ -37,6 +38,13 @@ def write_pmtiles(
         key=lambda kv: kv[0],
     )
 
+    # The grid block (CRS + tiling), plus the data's own projected extent so a
+    # client can frame the data exactly without re-projecting lon/lat (which is
+    # lossy for conic/azimuthal CRSs).
+    tippykayak_meta = grid.describe()
+    if data_extent is not None:
+        tippykayak_meta["data_extent"] = list(data_extent)
+
     metadata = {
         "name": name,
         "type": "overlay",
@@ -46,7 +54,7 @@ def write_pmtiles(
         "bounds": [min_lon, min_lat, max_lon, max_lat],
         "vector_layers": vector_layers,
         # Non-WebMercator clients read this block to know how to place the tiles.
-        "tippykayak": grid.describe(),
+        "tippykayak": tippykayak_meta,
         **{
             k: grid.describe()[k]
             for k in ("crs", "tile_origin_upper_left_x", "tile_origin_upper_left_y", "tile_dimension_zoom_0")

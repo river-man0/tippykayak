@@ -19,7 +19,7 @@ node_modules/
 # clone — rebuild data with examples/make_arctic.py and the bundle with
 # `npm run build:viewer`.
 examples/arctic.geojson
-examples/antarctica.geojson
+examples/canada.geojson
 
 # OS / editor
 .DS_Store

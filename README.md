@@ -203,6 +203,21 @@ Styling adapts to geometry type — polygons filled, lines stroked, points as do
 and `point_count` clusters as graduated, count-labelled bubbles. The pre-built,
 CDN-free bundle lives in `viewer/dist/`; rebuild with `npm run build:viewer`.
 
+### Deploy on GitHub Pages
+
+GitHub Pages serves static files **and supports HTTP Range**, so PMTiles work
+there. A workflow (`.github/workflows/pages.yml`) builds the bundle, assembles a
+site (viewer + demo archives, with the root redirecting to the viewer), and
+publishes it.
+
+**One-time setup** (the only manual step): repo **Settings → Pages → Build and
+deployment → Source = "GitHub Actions"**. Then every push touching `viewer/` or
+the demo `.pmtiles` redeploys, or run it manually from the **Actions** tab. The
+site lands at `https://<owner>.github.io/<repo>/`.
+
+No Actions? You can instead pick **Source = "Deploy from a branch"** (root) — the
+committed bundle and archives serve directly at `…/<repo>/viewer/`.
+
 > **Why not `python -m http.server`?** PMTiles is read with HTTP **Range**
 > requests, which Python's stock server ignores — it returns the whole file and
 > PMTiles breaks for any archive past its first read. `serve.py` adds Range

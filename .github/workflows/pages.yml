@@ -1,0 +1,72 @@
+name: Deploy viewer to GitHub Pages
+
+# Builds the OpenLayers viewer bundle, assembles a static site (viewer + demo
+# PMTiles), and publishes it to GitHub Pages.
+#
+# One-time setup: repo Settings → Pages → Build and deployment → Source =
+# "GitHub Actions". After that, every push that touches the viewer or the demo
+# archives redeploys; you can also run it manually from the Actions tab.
+
+on:
+  push:
+    branches: [main, claude/tippykayak-non-webmercator-da7hns]
+    paths:
+      - viewer/**
+      - examples/*.pmtiles
+      - package.json
+      - package-lock.json
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; let an in-progress run finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build:viewer
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/viewer _site/examples
+          # The viewer references ./dist/* and ../examples/*, so keep it under
+          # /viewer with the archives one level up.
+          cp -r viewer/index.html viewer/dist _site/viewer/
+          cp examples/*.pmtiles _site/examples/
+          # Redirect the site root to the viewer.
+          cat > _site/index.html <<'HTML'
+          <!doctype html><html lang="en"><head><meta charset="utf-8">
+          <meta http-equiv="refresh" content="0; url=./viewer/">
+          <title>tippykayak viewer</title></head>
+          <body><a href="./viewer/">tippykayak viewer →</a></body></html>
+          HTML
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

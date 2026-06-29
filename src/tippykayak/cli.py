@@ -16,7 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
         prog="tippykayak",
         description="Generate non-WebMercator PMTiles on a morecantile TileMatrixSet.",
     )
-    p.add_argument("input", nargs="?", help="Input GeoJSON file (EPSG:4326 by default).")
+    p.add_argument(
+        "input",
+        nargs="?",
+        help="Input file: GeoJSON, or an OpenStreetMap/Geofabrik .osm.pbf "
+        "(format auto-detected by extension).",
+    )
     p.add_argument("output", nargs="?", help="Output .pmtiles path.")
     p.add_argument(
         "--tms",
@@ -28,7 +33,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--name", default="tippykayak", help="Tileset name stored in metadata.")
     p.add_argument("--minzoom", type=int, default=0)
     p.add_argument("--maxzoom", type=int, default=6)
-    p.add_argument("--input-crs", default="4326", help="CRS of the input data (default 4326).")
+    p.add_argument("--input-crs", default="4326", help="CRS of GeoJSON input (default 4326). Ignored for .osm.pbf, which is always EPSG:4326.")
+
+    osm = p.add_argument_group("OpenStreetMap input (.osm.pbf)")
+    osm.add_argument(
+        "--theme",
+        default=None,
+        metavar="THEME.json",
+        help="JSON theme overriding the built-in general-basemap tag→class mapping.",
+    )
+    osm.add_argument(
+        "--bbox",
+        default=None,
+        metavar="MINLON,MINLAT,MAXLON,MAXLAT",
+        help="Only keep OSM features intersecting this lon/lat box (trims large extracts).",
+    )
     p.add_argument("--extent", type=int, default=4096, help="MVT tile extent.")
     p.add_argument("--simplify-pixels", type=float, default=1.0, help="Douglas-Peucker tolerance in pixels.")
     p.add_argument("--min-feature-pixels", type=float, default=1.5, help="Drop features smaller than this (px). 0 disables.")
@@ -62,6 +81,20 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().error("input and output are required (unless --list-tms)")
 
     grid = Grid.named(args.tms)
+
+    theme = None
+    if args.theme:
+        from .osm import load_theme
+
+        theme = load_theme(args.theme)
+
+    bbox = None
+    if args.bbox:
+        parts = [float(v) for v in args.bbox.split(",")]
+        if len(parts) != 4:
+            build_parser().error("--bbox expects MINLON,MINLAT,MAXLON,MAXLAT")
+        bbox = (parts[0], parts[1], parts[2], parts[3])
+
     aggregation = Aggregation(
         enabled=args.cluster,
         distance_pixels=args.cluster_distance,
@@ -81,14 +114,20 @@ def main(argv: list[str] | None = None) -> int:
         aggregation=aggregation,
     )
 
-    result = build(
-        args.input,
-        args.output,
-        grid,
-        options,
-        input_crs=args.input_crs,
-        name=args.name,
-    )
+    try:
+        result = build(
+            args.input,
+            args.output,
+            grid,
+            options,
+            input_crs=args.input_crs,
+            name=args.name,
+            theme=theme,
+            bbox=bbox,
+        )
+    except ValueError as exc:
+        print(f"tippykayak: {exc}", file=sys.stderr)
+        return 1
 
     print(
         f"Wrote {result.output} — {result.tile_count} tiles, "

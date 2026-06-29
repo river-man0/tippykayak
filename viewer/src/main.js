@@ -8,7 +8,7 @@ import Map from 'ol/Map.js';
 import View from 'ol/View.js';
 import VectorTileLayer from 'ol/layer/VectorTile.js';
 import TileGrid from 'ol/tilegrid/TileGrid.js';
-import { Style, Stroke, Fill, Circle as CircleStyle, Icon } from 'ol/style.js';
+import { Style, Stroke, Fill, Circle as CircleStyle, Icon, Text } from 'ol/style.js';
 import { get as getProjection } from 'ol/proj.js';
 import { register } from 'ol/proj/proj4.js';
 import proj4 from 'proj4';
@@ -16,6 +16,7 @@ import { PMTiles, FileSource } from 'pmtiles';
 import { PMTilesVectorSource } from 'ol-pmtiles';
 
 const DEMOS = [
+  { label: 'Greenland · OSM', url: '../examples/greenland-3413.pmtiles' },
   { label: 'Canada · Lambert', url: '../examples/canada-3978.pmtiles' },
   { label: 'Arctic · Stereographic', url: '../examples/arctic-3413.pmtiles' },
   { label: 'Arctic · LAEA', url: '../examples/arctic-3573.pmtiles' },
@@ -64,20 +65,81 @@ const POLY_STYLE = new Style({ zIndex: 0,
 const GRATICULE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(125,150,205,0.16)', width: 0.7 }) });
 const LINE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(120,200,170,0.8)', width: 1 }) });
 
+// ---- OSM (.osm.pbf) styling, keyed on the `class` property ----------------
+// Real OSM archives flatten everything into one layer tagged with `class`; this
+// palette gives each class a distinct, restrained look (areas filled, lines
+// stroked, places labelled). Legend order doubles as the legend itself.
+const CLASS_STYLES = {
+  glacier:  { kind: 'area', fill: 'rgba(225,240,255,0.30)', stroke: 'rgba(210,232,255,0.55)', width: 0.6, z: 1, label: 'Ice / glacier' },
+  water:    { kind: 'area', fill: 'rgba(58,120,200,0.40)',  stroke: 'rgba(120,180,255,0.6)',  width: 0.6, z: 2, label: 'Water' },
+  wetland:  { kind: 'area', fill: 'rgba(80,160,150,0.26)',  stroke: 'rgba(120,200,180,0.5)',  width: 0.5, z: 2, label: 'Wetland' },
+  landuse:  { kind: 'area', fill: 'rgba(96,140,96,0.20)',   stroke: 'rgba(140,190,140,0.35)', width: 0.5, z: 1, label: 'Land use' },
+  building: { kind: 'area', fill: 'rgba(190,196,214,0.55)', stroke: 'rgba(220,225,240,0.7)',  width: 0.5, z: 3, label: 'Building' },
+  coastline:{ kind: 'line', stroke: 'rgba(150,205,255,0.9)', width: 1.1, z: 4, label: 'Coastline' },
+  waterway: { kind: 'line', stroke: 'rgba(95,175,255,0.85)', width: 1.0, z: 4, label: 'Waterway' },
+  road:     { kind: 'line', stroke: 'rgba(232,205,150,0.75)', width: 0.9, z: 4, label: 'Road' },
+  place:    { kind: 'point', color: '#ffe7a8', z: 6, label: 'Place' },
+};
+
+const _osmCache = new Map();
+function osmStyle(feature, cls, resolution) {
+  const spec = CLASS_STYLES[cls];
+  if (!spec) return POLY_STYLE; // unknown class → neutral fallback
+  if (spec.kind === 'point') {
+    const name = feature.get('name');
+    const showLabel = name && resolution <= labelMaxRes;
+    const key = 'p:' + (showLabel ? name : '');
+    let style = _osmCache.get(key);
+    if (!style) {
+      style = new Style({
+        zIndex: spec.z,
+        image: new CircleStyle({ radius: 2.6, fill: new Fill({ color: spec.color }),
+          stroke: new Stroke({ color: 'rgba(0,0,0,0.45)', width: 0.6 }) }),
+        text: showLabel ? new Text({
+          text: name, font: '600 11px Inter, system-ui, sans-serif', offsetY: -9,
+          fill: new Fill({ color: '#f3ecd6' }),
+          stroke: new Stroke({ color: 'rgba(8,12,24,0.85)', width: 2.5 }),
+        }) : undefined,
+      });
+      _osmCache.set(key, style);
+    }
+    return style;
+  }
+  let style = _osmCache.get(cls);
+  if (!style) {
+    style = spec.kind === 'area'
+      ? new Style({ zIndex: spec.z, fill: new Fill({ color: spec.fill }),
+          stroke: new Stroke({ color: spec.stroke, width: spec.width }) })
+      : new Style({ zIndex: spec.z, stroke: new Stroke({ color: spec.stroke, width: spec.width }) });
+    _osmCache.set(cls, style);
+  }
+  return style;
+}
+
+// Resolution at/under which place labels appear; set per-archive in show().
+let labelMaxRes = 0;
+
 const _clusterCache = new Map();
 function clusterStyle(count) {
-  // Gentle sizing (colour carries magnitude); capped so big clusters stay tidy.
-  const radius = Math.max(6, Math.min(15, 5 + 1.7 * Math.sqrt(count)));
+  // Small, jewel-like cores: deliberately tiny so the map reads through, with
+  // colour (not size) carrying magnitude. Capped hard so dense clusters stay
+  // crisp instead of swallowing the basemap.
+  const radius = Math.max(2.5, Math.min(7.5, 1.8 + 0.8 * Math.sqrt(count)));
   const tier = CLUSTER_RAMP.findIndex((s) => count <= s.max);
-  const key = tier + ':' + Math.round(radius);
+  const key = tier + ':' + radius.toFixed(1);
   let styles = _clusterCache.get(key);
   if (!styles) {
     const rgb = CLUSTER_RAMP[tier].rgb;
-    // A soft halo behind a bright core → glow, no border.
+    // A faint outer glow behind a bright core finished with a thin bright rim —
+    // a premium, gemstone feel rather than a fat blob.
     styles = [
-      new Style({ zIndex: 3, image: new CircleStyle({ radius: radius * 2.1, fill: new Fill({ color: rgba(rgb, 0.09) }) }) }),
-      new Style({ zIndex: 4, image: new CircleStyle({ radius: radius * 1.42, fill: new Fill({ color: rgba(rgb, 0.24) }) }) }),
-      new Style({ zIndex: 5, image: new CircleStyle({ radius, fill: new Fill({ color: rgba(rgb, 0.96) }) }) }),
+      new Style({ zIndex: 3, image: new CircleStyle({ radius: radius * 2.3, fill: new Fill({ color: rgba(rgb, 0.06) }) }) }),
+      new Style({ zIndex: 4, image: new CircleStyle({ radius: radius * 1.45, fill: new Fill({ color: rgba(rgb, 0.16) }) }) }),
+      new Style({ zIndex: 5, image: new CircleStyle({
+        radius,
+        fill: new Fill({ color: rgba(rgb, 0.95) }),
+        stroke: new Stroke({ color: 'rgba(255,255,255,0.55)', width: 0.75 }),
+      }) }),
     ];
     _clusterCache.set(key, styles);
   }
@@ -104,17 +166,20 @@ function singletonStyle(category) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${glyph}</svg>`;
     const rgb = hexToRgb(meta.color);
     styles = [
-      new Style({ zIndex: 6, image: new CircleStyle({ radius: 11, fill: new Fill({ color: rgba(rgb, 0.16) }) }) }),
-      new Style({ zIndex: 7, image: new Icon({ src: 'data:image/svg+xml,' + encodeURIComponent(svg), scale: 0.74 }) }),
+      new Style({ zIndex: 6, image: new CircleStyle({ radius: 8, fill: new Fill({ color: rgba(rgb, 0.14) }) }) }),
+      new Style({ zIndex: 7, image: new Icon({ src: 'data:image/svg+xml,' + encodeURIComponent(svg), scale: 0.62 }) }),
     ];
   } else {
-    styles = [new Style({ zIndex: 6, image: new CircleStyle({ radius: 4, fill: new Fill({ color: 'rgba(150,190,255,0.9)' }) }) })];
+    styles = [new Style({ zIndex: 6, image: new CircleStyle({ radius: 3, fill: new Fill({ color: 'rgba(150,190,255,0.92)' }) }) })];
   }
   _singletonCache.set(category || '_', styles);
   return styles;
 }
 
-function styleFor(feature) {
+function styleFor(feature, resolution) {
+  // Real OSM archives carry a `class`; route those to the class palette.
+  const cls = feature.get('class');
+  if (cls) return osmStyle(feature, cls, resolution);
   const type = feature.getType();
   if (type === 'Polygon' || type === 'MultiPolygon') return feature.get('kind') === 'land' ? LAND_STYLE : POLY_STYLE;
   if (type === 'LineString' || type === 'MultiLineString') {
@@ -174,9 +239,16 @@ async function show(source, label) {
   const resolutions = [];
   for (let z = 0; z <= header.maxZoom; z++) resolutions.push(res0 / Math.pow(2, z));
 
+  // Real OSM archives carry per-feature classes; detect them to drive class
+  // styling/legend and place labels (shown only in the deepest few zooms).
+  const fields = (meta.vector_layers && meta.vector_layers[0] && meta.vector_layers[0].fields) || {};
+  const hasClasses = 'class' in fields;
+  labelMaxRes = resolutions[Math.max(0, header.maxZoom - 3)];
+
   const tileGrid = new TileGrid({ origin: [tk.tile_origin_upper_left_x, tk.tile_origin_upper_left_y], resolutions, tileSize, extent: [minx, miny, maxx, maxy] });
   const vsource = new PMTilesVectorSource({ url: pmSource, projection, tileGrid });
-  const layer = new VectorTileLayer({ source: vsource, style: styleFor });
+  // declutter keeps OSM place labels from colliding without hand-rolled logic.
+  const layer = new VectorTileLayer({ source: vsource, style: styleFor, declutter: hasClasses });
 
   if (map) { map.setTarget(undefined); map = null; }
   map = new Map({ target: 'map', layers: [layer], controls: [],
@@ -188,6 +260,7 @@ async function show(source, label) {
   map.getView().fit(fitExtent, { padding: [54, 30, 74, 30], maxZoom: header.maxZoom, constrainResolution: false });
 
   setMeta(`${tk.title || tk.tilematrixset} · ${tk.crs}`);
+  buildLegend(hasClasses);
   enableDrop();
 }
 
@@ -196,9 +269,15 @@ function setMeta(html) { $('meta').innerHTML = html; }
 
 // ---- UI ------------------------------------------------------------------
 
-function buildLegend() {
-  $('legend').innerHTML = Object.values(CATEGORIES)
-    .map((c) => `<span class="it"><span class="sw" style="background:${c.color};box-shadow:0 0 8px ${c.color}"></span>${c.label}</span>`)
+function buildLegend(osm = false) {
+  const items = osm
+    ? Object.values(CLASS_STYLES).map((s) => {
+        const color = s.kind === 'line' ? s.stroke : (s.kind === 'point' ? s.color : s.fill);
+        return { color, label: s.label, glow: s.kind !== 'area' };
+      })
+    : Object.values(CATEGORIES).map((c) => ({ color: c.color, label: c.label, glow: true }));
+  $('legend').innerHTML = items
+    .map((c) => `<span class="it"><span class="sw" style="background:${c.color}${c.glow ? `;box-shadow:0 0 8px ${c.color}` : ''}"></span>${c.label}</span>`)
     .join('');
 }
 

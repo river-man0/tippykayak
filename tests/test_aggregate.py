@@ -21,8 +21,10 @@ def test_custom_arctic_grids_resolve_to_right_epsg():
     assert g3573.describe()["epsg"] == 3573
     # Square quad → one tile at zoom 0.
     assert g3413.zoom(0).matrix_width == 1
-    # EPSG:3573 extent edge sits at ~45N by construction.
-    assert g3573.describe()["tile_origin_upper_left_y"] == pytest.approx(4889334.8765)
+    # The square extents are sized to hold the Arctic landmass down to ~40N
+    # without the grid clipping the projected disc (see tms.CUSTOM_GRIDS).
+    assert g3413.describe()["tile_origin_upper_left_y"] == pytest.approx(6000000.0)
+    assert g3573.describe()["tile_origin_upper_left_y"] == pytest.approx(5600000.0)
 
 
 def test_custom_grids_listed():

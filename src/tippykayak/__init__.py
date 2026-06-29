@@ -8,6 +8,8 @@ OpenLayers.
 """
 
 from .aggregate import Accumulation, Aggregation
+from .features import load_features
+from .osm import DEFAULT_THEME, Rule, iter_osm_raw, load_theme
 from .pipeline import BuildResult, build
 from .tiler import TileOptions, build_tiles
 from .tms import Grid
@@ -22,5 +24,10 @@ __all__ = [
     "build",
     "build_tiles",
     "BuildResult",
+    "load_features",
+    "iter_osm_raw",
+    "load_theme",
+    "DEFAULT_THEME",
+    "Rule",
     "__version__",
 ]

@@ -186,31 +186,39 @@ class Grid:
 
 # tippykayak's built-in custom grids for projections morecantile doesn't ship.
 #
-# EPSG:3413 — NSIDC Sea Ice Polar Stereographic North. The extent (±4194304 m) is
-# NASA GIBS's: a power-of-two square that frames the Arctic landmasses.
-# EPSG:3573 — North Pole LAEA (Canada). The extent (±4889334.8765 m) places the
-# grid edge at exactly 45°N, matching ArcticConnect's 45–90°N coverage.
-# EPSG:3978 — NAD83 / Canada Atlas Lambert (conformal conic). A square extent that
-# snugly frames the Canadian landmass; data is fitted to its own bounds, so the
-# generous south padding stays empty (and untiled).
+# Each extent is a square (a clean power-of-two quad) sized to actually contain
+# the projection's useful coverage, so the rendered map isn't clipped at the grid
+# edge. For the polar azimuthal grids that means a square whose inscribed circle
+# reaches ~40°N — far enough south to hold the full Arctic landmass (which reaches
+# ~40°N) without the square chopping the projected disc into an octagon.
+#
+# EPSG:3413 — NSIDC Sea Ice Polar Stereographic North (true at 70°N). At 40°N the
+#   projected radius is ~5.77e6 m, so ±6e6 m frames the whole disc with a margin.
+# EPSG:3573 — North Pole LAEA (Canada, lon₀ −100°). At 40°N the radius is ~5.40e6
+#   m, so ±5.6e6 m holds the landmass (the old ±4.89e6 edge sat at 45°N and clipped
+#   everything south of it).
+# EPSG:3978 — NAD83 / Canada Atlas Lambert (conformal conic). A square centred on
+#   the Canadian content (landmass + graticule projects to ≈ x[-3.54e6, 3.01e6],
+#   y[-0.77e6, 3.87e6]); sized to hold all of it while trimming the old extent's
+#   large empty southern margin.
 CUSTOM_GRIDS: dict[str, "callable"] = {
     "EPSG3413": lambda: Grid.custom(
         3413,
-        [-4194304.0, -4194304.0, 4194304.0, 4194304.0],
+        [-6000000.0, -6000000.0, 6000000.0, 6000000.0],
         "EPSG3413",
         title="NSIDC Sea Ice Polar Stereographic North",
         max_zoom=18,
     ),
     "EPSG3573": lambda: Grid.custom(
         3573,
-        [-4889334.8765, -4889334.8765, 4889334.8765, 4889334.8765],
+        [-5600000.0, -5600000.0, 5600000.0, 5600000.0],
         "EPSG3573",
         title="North Pole LAEA (Canada / Beringia)",
         max_zoom=18,
     ),
     "EPSG3978": lambda: Grid.custom(
         3978,
-        [-3970000.0, -2270000.0, 3630000.0, 5330000.0],
+        [-3750000.0, -1950000.0, 3250000.0, 5050000.0],
         "EPSG3978",
         title="NAD83 / Canada Atlas Lambert",
         max_zoom=18,

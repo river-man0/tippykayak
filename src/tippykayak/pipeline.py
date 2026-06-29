@@ -9,7 +9,7 @@ from pyproj import CRS, Transformer
 
 from .archive import write_pmtiles
 from .encode import encode_tile
-from .features import Feature, load_geojson
+from .features import Feature, load_features
 from .tiler import TileOptions, build_tiles
 from .tms import Grid
 
@@ -32,8 +32,12 @@ def build(
     *,
     input_crs: str | int = 4326,
     name: str = "tippykayak",
+    theme=None,
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> BuildResult:
-    features = load_geojson(input_path, grid, input_crs=input_crs)
+    features = load_features(
+        input_path, grid, input_crs=input_crs, theme=theme, bbox=bbox
+    )
     if not features:
         raise ValueError(f"No usable features found in {input_path}")
 

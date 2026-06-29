@@ -183,8 +183,8 @@ custom grids are built in (alongside everything morecantile ships):
 
 | id | CRS | projection | extent |
 | --- | --- | --- | --- |
-| `EPSG3413` | EPSG:3413 | NSIDC polar stereographic (true at 70°N) | ±4 194 304 m (NASA GIBS) |
-| `EPSG3573` | EPSG:3573 | North Pole LAEA (Canada, lon₀ −100°) | ±4 889 334.88 m (edge at 45°N) |
+| `EPSG3413` | EPSG:3413 | NSIDC polar stereographic (true at 70°N) | ±6 000 000 m (holds the disc to ~40°N) |
+| `EPSG3573` | EPSG:3573 | North Pole LAEA (Canada, lon₀ −100°) | ±5 600 000 m (holds the disc to ~40°N) |
 | `EPSG3978` | EPSG:3978 | NAD83 / Canada Atlas Lambert (conformal conic) | square, framing Canada |
 
 ### Python

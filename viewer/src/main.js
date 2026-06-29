@@ -66,18 +66,25 @@ const LINE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(120,
 
 const _clusterCache = new Map();
 function clusterStyle(count) {
-  // Gentle sizing (colour carries magnitude); capped so big clusters stay tidy.
-  const radius = Math.max(6, Math.min(15, 5 + 1.7 * Math.sqrt(count)));
+  // Small, jewel-like cores: deliberately tiny so the map reads through, with
+  // colour (not size) carrying magnitude. Capped hard so dense clusters stay
+  // crisp instead of swallowing the basemap.
+  const radius = Math.max(2.5, Math.min(7.5, 1.8 + 0.8 * Math.sqrt(count)));
   const tier = CLUSTER_RAMP.findIndex((s) => count <= s.max);
-  const key = tier + ':' + Math.round(radius);
+  const key = tier + ':' + radius.toFixed(1);
   let styles = _clusterCache.get(key);
   if (!styles) {
     const rgb = CLUSTER_RAMP[tier].rgb;
-    // A soft halo behind a bright core → glow, no border.
+    // A faint outer glow behind a bright core finished with a thin bright rim —
+    // a premium, gemstone feel rather than a fat blob.
     styles = [
-      new Style({ zIndex: 3, image: new CircleStyle({ radius: radius * 2.1, fill: new Fill({ color: rgba(rgb, 0.09) }) }) }),
-      new Style({ zIndex: 4, image: new CircleStyle({ radius: radius * 1.42, fill: new Fill({ color: rgba(rgb, 0.24) }) }) }),
-      new Style({ zIndex: 5, image: new CircleStyle({ radius, fill: new Fill({ color: rgba(rgb, 0.96) }) }) }),
+      new Style({ zIndex: 3, image: new CircleStyle({ radius: radius * 2.3, fill: new Fill({ color: rgba(rgb, 0.06) }) }) }),
+      new Style({ zIndex: 4, image: new CircleStyle({ radius: radius * 1.45, fill: new Fill({ color: rgba(rgb, 0.16) }) }) }),
+      new Style({ zIndex: 5, image: new CircleStyle({
+        radius,
+        fill: new Fill({ color: rgba(rgb, 0.95) }),
+        stroke: new Stroke({ color: 'rgba(255,255,255,0.55)', width: 0.75 }),
+      }) }),
     ];
     _clusterCache.set(key, styles);
   }
@@ -104,11 +111,11 @@ function singletonStyle(category) {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">${glyph}</svg>`;
     const rgb = hexToRgb(meta.color);
     styles = [
-      new Style({ zIndex: 6, image: new CircleStyle({ radius: 11, fill: new Fill({ color: rgba(rgb, 0.16) }) }) }),
-      new Style({ zIndex: 7, image: new Icon({ src: 'data:image/svg+xml,' + encodeURIComponent(svg), scale: 0.74 }) }),
+      new Style({ zIndex: 6, image: new CircleStyle({ radius: 8, fill: new Fill({ color: rgba(rgb, 0.14) }) }) }),
+      new Style({ zIndex: 7, image: new Icon({ src: 'data:image/svg+xml,' + encodeURIComponent(svg), scale: 0.62 }) }),
     ];
   } else {
-    styles = [new Style({ zIndex: 6, image: new CircleStyle({ radius: 4, fill: new Fill({ color: 'rgba(150,190,255,0.9)' }) }) })];
+    styles = [new Style({ zIndex: 6, image: new CircleStyle({ radius: 3, fill: new Fill({ color: 'rgba(150,190,255,0.92)' }) }) })];
   }
   _singletonCache.set(category || '_', styles);
   return styles;

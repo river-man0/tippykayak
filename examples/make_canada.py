@@ -72,21 +72,23 @@ def sample_sites(land_features: list[dict]) -> list[dict]:
 
 
 def graticule() -> list[dict]:
+    # Kept inside the landmass's footprint so it reads as context without
+    # sprawling past the coast (which would inflate the framing extent).
     feats = []
-    for lat in (50, 60, 70):
+    for lat in (55, 65, 75):
         feats.append(
             {
                 "type": "Feature",
                 "properties": {"kind": "parallel"},
-                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon in range(-141, -51, 1)]},
+                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lon in range(-132, -57, 1)]},
             }
         )
-    for lon in range(-140, -51, 20):
+    for lon in range(-130, -59, 20):
         feats.append(
             {
                 "type": "Feature",
                 "properties": {"kind": "meridian"},
-                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lat in range(42, 79)]},
+                "geometry": {"type": "LineString", "coordinates": [[lon, lat] for lat in range(48, 81)]},
             }
         )
     return feats

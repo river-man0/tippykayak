@@ -24,3 +24,7 @@ examples/canada.geojson
 # OS / editor
 .DS_Store
 *.swp
+
+# Real OSM extract for the Greenland demo (downloaded by make_greenland.py;
+# the .pmtiles artifact is committed, the source extract is not).
+examples/data/greenland-latest.osm.pbf

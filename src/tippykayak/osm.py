@@ -118,8 +118,11 @@ DEFAULT_THEME: tuple[Rule, ...] = (
     Rule("water", AREA, "waterway", frozenset({"riverbank", "dock"})),
     Rule("water", AREA, "landuse", frozenset({"reservoir", "basin"})),
     Rule("wetland", AREA, "natural", frozenset({"wetland"})),
+    # Ice gets its own class — it's the dominant Arctic land cover (e.g. the
+    # Greenland ice sheet) and warrants distinct styling from vegetated landuse.
+    Rule("glacier", AREA, "natural", frozenset({"glacier"})),
     Rule("landuse", AREA, "natural",
-         frozenset({"wood", "scrub", "heath", "grassland", "glacier",
+         frozenset({"wood", "scrub", "heath", "grassland",
                     "bare_rock", "scree", "sand", "beach"})),
     Rule("landuse", AREA, "landuse", None),
     Rule("building", AREA, "building", None),

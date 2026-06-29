@@ -209,6 +209,7 @@ build("settlements.geojson", "out.pmtiles", grid,
 
 ```bash
 pip install -e .
+python examples/make_greenland.py        # REAL OSM (Geofabrik) → greenland-3413 PMTiles
 python examples/make_canada.py           # infrastructure sites → canada-3978 PMTiles
 python examples/make_arctic.py           # settlements → arctic-3413 + arctic-3573 PMTiles
 python serve.py                          # range-capable static server, port 8000
@@ -217,12 +218,15 @@ python serve.py                          # range-capable static server, port 800
 
 ![Canadian infrastructure on EPSG:3978, rendered in OpenLayers](viewer/preview.png)
 
-The flagship demo draws **Natural Earth coastlines** for context and tiles ~720
-synthetic infrastructure sites (sampled *on land*) onto **EPSG:3978** (Canada
-Atlas Lambert). Dense areas glow as density-coloured clusters; individual sites
-show a glyph for their category — airport, power, radio, or military. The Arctic
-demo does the same on **EPSG:3413** (polar stereographic) and **EPSG:3573** (North
-Pole LAEA). Clusters split apart as you zoom in.
+The headline demo is **real data**: `make_greenland.py` downloads the
+[Geofabrik Greenland extract](https://download.geofabrik.de/north-america/greenland.html)
+(~26 MB `.osm.pbf`) and tiles its real coastlines, the ice sheet
+(`natural=glacier`), lakes, waterways and settlements onto **EPSG:3413** (NSIDC
+polar stereographic, centred so Greenland sits upright) — the viewer styles each
+OSM `class` distinctly and labels places. The synthetic demos round it out: ~720
+infrastructure sites on **EPSG:3978** (Canada Atlas Lambert) and clustered
+settlements on **EPSG:3413** / **EPSG:3573**, where dense areas glow as
+density-coloured clusters that split apart as you zoom in.
 
 ## The viewer
 
@@ -292,6 +296,7 @@ viewer/
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
+  make_greenland.py real-data demo: downloads a Geofabrik .osm.pbf → EPSG:3413
   make_canada.py    Canada demo: coastlines + categorised sites (EPSG:3978)
   make_arctic.py    Arctic demo: coastlines + clustered settlements (3413/3573)
   data/             Natural Earth land (public domain), committed source data

@@ -1,18 +1,38 @@
-name: Deploy viewer to GitHub Pages
+name: CI and deploy viewer to GitHub Pages
 
-# Builds the OpenLayers viewer bundle, assembles a static site (viewer + demo
+# Single workflow for the whole project: it runs the Python test suite, then
+# builds the OpenLayers viewer bundle, assembles a static site (viewer + demo
 # PMTiles), and publishes it to GitHub Pages.
 #
+# The deploy job only publishes from the release branches (see `if:` below);
+# pushes to other branches still run tests and build so CI stays green.
+#
 # One-time setup: repo Settings → Pages → Build and deployment → Source =
-# "GitHub Actions". After that, every push that touches the viewer or the demo
-# archives redeploys; you can also run it manually from the Actions tab.
+# "GitHub Actions". After that, every push that touches the code, the viewer or
+# the demo archives runs this workflow; you can also run it manually from the
+# Actions tab.
 
 on:
   push:
-    branches: [main, claude/tippykayak-non-webmercator-da7hns]
+    branches:
+      - main
+      - claude/tippykayak-non-webmercator-da7hns
+      - claude/build-status-wfofzt
     paths:
+      - src/**
+      - tests/**
+      - pyproject.toml
       - viewer/**
       - examples/*.pmtiles
+      - package.json
+      - package-lock.json
+      - .github/workflows/pages.yml
+  pull_request:
+    paths:
+      - src/**
+      - tests/**
+      - pyproject.toml
+      - viewer/**
       - package.json
       - package-lock.json
       - .github/workflows/pages.yml
@@ -29,7 +49,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -e '.[dev]'
+      - run: pytest -q
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +97,12 @@ jobs:
 
   deploy:
     needs: build
+    # Only publish from the release branches; other branches and pull requests
+    # still run test + build above, but don't redeploy the live site.
+    if: >-
+      github.event_name == 'push' &&
+      (github.ref == 'refs/heads/main' ||
+       github.ref == 'refs/heads/claude/tippykayak-non-webmercator-da7hns')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

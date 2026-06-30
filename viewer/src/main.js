@@ -70,6 +70,7 @@ const LINE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(120,
 // palette gives each class a distinct, restrained look (areas filled, lines
 // stroked, places labelled). Legend order doubles as the legend itself.
 const CLASS_STYLES = {
+  land:     { kind: 'area', fill: 'rgba(64,96,150,0.16)',   stroke: 'rgba(120,170,235,0.5)',  width: 0.8, z: 0, label: 'Land' },
   glacier:  { kind: 'area', fill: 'rgba(225,240,255,0.30)', stroke: 'rgba(210,232,255,0.55)', width: 0.6, z: 1, label: 'Ice / glacier' },
   water:    { kind: 'area', fill: 'rgba(58,120,200,0.40)',  stroke: 'rgba(120,180,255,0.6)',  width: 0.6, z: 2, label: 'Water' },
   wetland:  { kind: 'area', fill: 'rgba(80,160,150,0.26)',  stroke: 'rgba(120,200,180,0.5)',  width: 0.5, z: 2, label: 'Wetland' },

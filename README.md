@@ -211,22 +211,31 @@ build("settlements.geojson", "out.pmtiles", grid,
 pip install -e .
 python examples/make_greenland.py        # REAL OSM (Geofabrik) → greenland-3413 PMTiles
 python examples/make_canada.py           # infrastructure sites → canada-3978 PMTiles
-python examples/make_arctic.py           # settlements → arctic-3413 + arctic-3573 PMTiles
+python examples/make_arctic.py           # REAL OSM circumpolar land + ice → arctic-3413 + arctic-3573
 python serve.py                          # range-capable static server, port 8000
 # open http://localhost:8000/viewer/index.html
 ```
 
 ![Canadian infrastructure on EPSG:3978, rendered in OpenLayers](viewer/preview.png)
 
-The headline demo is **real data**: `make_greenland.py` downloads the
+The demos are **real polar data**. `make_greenland.py` downloads the
 [Geofabrik Greenland extract](https://download.geofabrik.de/north-america/greenland.html)
 (~26 MB `.osm.pbf`) and tiles its real coastlines, the ice sheet
 (`natural=glacier`), lakes, waterways and settlements onto **EPSG:3413** (NSIDC
-polar stereographic, centred so Greenland sits upright) — the viewer styles each
-OSM `class` distinctly and labels places. The synthetic demos round it out: ~720
-infrastructure sites on **EPSG:3978** (Canada Atlas Lambert) and clustered
-settlements on **EPSG:3413** / **EPSG:3573**, where dense areas glow as
-density-coloured clusters that split apart as you zoom in.
+polar stereographic, centred so Greenland sits upright). `make_arctic.py` then
+draws the whole **circumpolar Arctic** on both north-pole grids — **EPSG:3413**
+and **EPSG:3573** — from the OpenStreetMap [land-polygons
+product](https://osmdata.openstreetmap.de/) (real coastlines, reprojected and
+clipped to lat ≥ 40) plus the Greenland ice sheet (`natural=glacier`), so the
+projections that exist to show the Arctic actually show it. The viewer styles
+each OSM `class` distinctly and labels places. Rounding it out, `make_canada.py`
+samples ~720 synthetic infrastructure sites on **EPSG:3978** (Canada Atlas
+Lambert), where dense areas glow as density-coloured clusters that split apart as
+you zoom in.
+
+> OpenStreetMap has no **sea** ice (it is seasonal satellite data, e.g. the NSIDC
+> Sea Ice Index); only *land* ice — ice sheets and glaciers — is mapped in OSM,
+> so that is what the demos show.
 
 ## The viewer
 
@@ -298,8 +307,8 @@ serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
   make_greenland.py real-data demo: downloads a Geofabrik .osm.pbf → EPSG:3413
   make_canada.py    Canada demo: coastlines + categorised sites (EPSG:3978)
-  make_arctic.py    Arctic demo: coastlines + clustered settlements (3413/3573)
-  data/             Natural Earth land (public domain), committed source data
+  make_arctic.py    Arctic demo: real OSM circumpolar land + ice (3413/3573)
+  data/             committed Natural Earth land (Canada) + downloaded OSM sources
 tests/              pytest suite
 ```
 

@@ -218,12 +218,15 @@ python serve.py                          # range-capable static server, port 800
 
 The demo is tippykayak's whole thesis in one screen: **the same data, four tiling
 schemes**. `make_projections.py` takes a single source — real **Natural Earth**
-land clipped to latitude ≥ 40° (public domain) — and tiles it natively onto four
-TileMatrixSets: **EPSG:3413** (NSIDC polar stereographic), **EPSG:3573** (North
-Pole LAEA), **EPSG:3978** (Canada Atlas Lambert, conic), and a geographic
-plate-carrée grid (**CRS84**). The viewer's projection switcher flips the
-identical coastlines between them — from a pole-centred disc to a flat lon/lat
-strip — with nothing but the embedded per-grid metadata.
+land and country boundaries clipped to latitude ≥ 40° (public domain), plus a
+generated lat/lon graticule, the Arctic Circle, and the red antimeridian — and
+tiles it natively onto four TileMatrixSets: **EPSG:3413** (NSIDC polar
+stereographic), **EPSG:3573** (North Pole LAEA), **EPSG:3978** (Canada Atlas
+Lambert, conic), and a geographic plate-carrée grid (**CRS84**). The viewer's
+projection switcher flips the identical geography between them — from a
+pole-centred disc to a flat lon/lat strip — with nothing but the embedded
+per-grid metadata. Every feature is densified before tiling, so the 40° clip
+reprojects to a smooth curve rather than a straight chord in the polar views.
 
 Other input formats and features (**OSM/Geofabrik `.osm.pbf`** ingestion, point
 **clustering**) are documented below and covered by the test suite; the shipped
@@ -302,7 +305,7 @@ viewer/
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
   make_projections.py one Natural Earth land clip → 4 tiling schemes (3413/3573/3978/CRS84)
-  data/               committed Natural Earth land clip (public domain)
+  data/               committed Natural Earth land + boundary clips (public domain)
 tests/              pytest suite
 ```
 

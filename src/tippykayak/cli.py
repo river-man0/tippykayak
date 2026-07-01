@@ -32,7 +32,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--layer", default="tippykayak", help="MVT layer name.")
     p.add_argument("--name", default="tippykayak", help="Tileset name stored in metadata.")
     p.add_argument("--minzoom", type=int, default=0)
-    p.add_argument("--maxzoom", type=int, default=6)
+    p.add_argument(
+        "--maxzoom",
+        default="6",
+        help="Deepest zoom to tile, or 'auto' to guess the shallowest zoom that "
+        "still resolves the data's spacing (tippecanoe's -zg). Default 6.",
+    )
     p.add_argument("--input-crs", default="4326", help="CRS of GeoJSON input (default 4326). Ignored for .osm.pbf, which is always EPSG:4326.")
 
     osm = p.add_argument_group("OpenStreetMap input (.osm.pbf)")
@@ -51,8 +56,28 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--extent", type=int, default=4096, help="MVT tile extent.")
     p.add_argument("--simplify-pixels", type=float, default=1.0, help="Douglas-Peucker tolerance in pixels.")
     p.add_argument("--min-feature-pixels", type=float, default=1.5, help="Drop features smaller than this (px). 0 disables.")
+    p.add_argument(
+        "--no-polygon-dust",
+        dest="polygon_dust",
+        action="store_false",
+        help="Discard sub-pixel polygons outright instead of accumulating their "
+        "area into placeholder 'dust' squares.",
+    )
     p.add_argument("--point-retain", type=float, default=1.0, help="Per-zoom point retention factor (1.0 = keep all). Ignored when --cluster is set.")
     p.add_argument("--buffer-pixels", type=float, default=8.0, help="Tile edge buffer in pixels.")
+    p.add_argument(
+        "--max-tile-bytes",
+        type=int,
+        default=512_000,
+        help="Byte budget per gzipped tile; oversized tiles shed their smallest "
+        "features until they fit (default 512000; 0 disables).",
+    )
+    p.add_argument(
+        "--max-tile-features",
+        type=int,
+        default=200_000,
+        help="Feature budget per tile (default 200000; 0 disables).",
+    )
 
     agg = p.add_argument_group("point aggregation (clustering)")
     agg.add_argument("--cluster", action="store_true", help="Cluster nearby points into counted representatives.")
@@ -95,6 +120,14 @@ def main(argv: list[str] | None = None) -> int:
             build_parser().error("--bbox expects MINLON,MINLAT,MAXLON,MAXLAT")
         bbox = (parts[0], parts[1], parts[2], parts[3])
 
+    if args.maxzoom.lower() == "auto":
+        max_zoom = None
+    else:
+        try:
+            max_zoom = int(args.maxzoom)
+        except ValueError:
+            build_parser().error("--maxzoom expects an integer or 'auto'")
+
     aggregation = Aggregation(
         enabled=args.cluster,
         distance_pixels=args.cluster_distance,
@@ -105,12 +138,15 @@ def main(argv: list[str] | None = None) -> int:
     options = TileOptions(
         layer=args.layer,
         min_zoom=args.minzoom,
-        max_zoom=args.maxzoom,
+        max_zoom=max_zoom,
         extent=args.extent,
         simplify_pixels=args.simplify_pixels,
         min_feature_pixels=args.min_feature_pixels,
+        polygon_dust=args.polygon_dust,
         point_retain_per_zoom=args.point_retain,
         buffer_pixels=args.buffer_pixels,
+        max_tile_features=args.max_tile_features,
+        max_tile_bytes=args.max_tile_bytes,
         aggregation=aggregation,
     )
 

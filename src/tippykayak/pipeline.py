@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pyproj import CRS, Transformer
@@ -10,7 +10,7 @@ from pyproj import CRS, Transformer
 from .archive import write_pmtiles
 from .encode import encode_tile
 from .features import Feature, load_features
-from .tiler import TileOptions, build_tiles
+from .tiler import TileOptions, build_tiles, guess_max_zoom
 from .tms import Grid
 
 
@@ -35,19 +35,31 @@ def build(
     theme=None,
     bbox: tuple[float, float, float, float] | None = None,
 ) -> BuildResult:
-    _require_square_quad(grid)
-
     features = load_features(
         input_path, grid, input_crs=input_crs, theme=theme, bbox=bbox
     )
     if not features:
         raise ValueError(f"No usable features found in {input_path}")
 
+    # max_zoom=None means "guess from the data" (tippecanoe's -zg): the
+    # shallowest zoom whose quantization step resolves the data's spacing.
+    if options.max_zoom is None:
+        options = replace(options, max_zoom=guess_max_zoom(grid, features, options))
+    _require_square_quad(grid, options.max_zoom)
+
     pyramid = build_tiles(grid, features, options)
 
     encoded: dict[tuple[int, int, int], bytes] = {}
     for (z, col, row), layers in pyramid.items():
-        encoded[(z, col, row)] = encode_tile(layers, col, row, grid.zoom(z), options.extent)
+        encoded[(z, col, row)] = encode_tile(
+            layers,
+            col,
+            row,
+            grid.zoom(z),
+            options.extent,
+            max_features=options.max_tile_features,
+            max_bytes=options.max_tile_bytes,
+        )
 
     # Clamp to the grid's own extent: a client can't frame beyond the tileable
     # area, and for a conic fed global data the far side projects to enormous
@@ -76,7 +88,7 @@ def build(
     )
 
 
-def _require_square_quad(grid: Grid) -> None:
+def _require_square_quad(grid: Grid, max_zoom: int) -> None:
     """Reject grids PMTiles can't address.
 
     PMTiles tile IDs walk a Hilbert curve over a square ``2^z × 2^z`` grid, so a
@@ -84,6 +96,10 @@ def _require_square_quad(grid: Grid) -> None:
     TileMatrixSets qualify, but some geographic ones (e.g. ``WorldCRS84Quad``) are
     ``2×1`` at zoom 0 and would fail deep inside the writer with an opaque "tile
     x/y outside zoom level bounds". Fail early with a fix instead.
+
+    The same property is what lets the tiler descend the pyramid as a quadtree
+    (each tile splits into exactly four children), so verify the doubling
+    through every zoom that will be tiled, not just zoom 0.
     """
     z0 = grid.zoom(grid.min_zoom)
     if z0.matrix_width != 1 or z0.matrix_height != 1:
@@ -93,6 +109,18 @@ def _require_square_quad(grid: Grid) -> None:
             f"square 2^z×2^z quad (one tile at zoom 0). For geographic tiling use a "
             f"square grid such as 'CRS84Square'."
         )
+    for z in range(grid.min_zoom, max_zoom):
+        parent, child = grid.zoom(z), grid.zoom(z + 1)
+        if (
+            child.matrix_width != 2 * parent.matrix_width
+            or child.matrix_height != 2 * parent.matrix_height
+        ):
+            raise ValueError(
+                f"Grid '{grid.id}' is not a quadtree between zooms {z} and {z + 1} "
+                f"({parent.matrix_width}×{parent.matrix_height} → "
+                f"{child.matrix_width}×{child.matrix_height}); PMTiles addressing "
+                f"and tippykayak's tiler both require matrices that double per zoom."
+            )
 
 
 def _vector_layers(features: list[Feature], options: TileOptions) -> list[dict]:

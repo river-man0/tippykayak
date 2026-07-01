@@ -35,6 +35,8 @@ def build(
     theme=None,
     bbox: tuple[float, float, float, float] | None = None,
 ) -> BuildResult:
+    _require_square_quad(grid)
+
     features = load_features(
         input_path, grid, input_crs=input_crs, theme=theme, bbox=bbox
     )
@@ -68,6 +70,25 @@ def build(
         max_zoom=options.max_zoom,
         grid=grid.id,
     )
+
+
+def _require_square_quad(grid: Grid) -> None:
+    """Reject grids PMTiles can't address.
+
+    PMTiles tile IDs walk a Hilbert curve over a square ``2^z × 2^z`` grid, so a
+    scheme must have a single tile at its top zoom and double on both axes. Most
+    TileMatrixSets qualify, but some geographic ones (e.g. ``WorldCRS84Quad``) are
+    ``2×1`` at zoom 0 and would fail deep inside the writer with an opaque "tile
+    x/y outside zoom level bounds". Fail early with a fix instead.
+    """
+    z0 = grid.zoom(grid.min_zoom)
+    if z0.matrix_width != 1 or z0.matrix_height != 1:
+        raise ValueError(
+            f"Grid '{grid.id}' is not PMTiles-addressable: its zoom-{grid.min_zoom} "
+            f"matrix is {z0.matrix_width}×{z0.matrix_height}, but PMTiles requires a "
+            f"square 2^z×2^z quad (one tile at zoom 0). For geographic tiling use a "
+            f"square grid such as 'CRS84Square'."
+        )
 
 
 def _vector_layers(features: list[Feature], options: TileOptions) -> list[dict]:

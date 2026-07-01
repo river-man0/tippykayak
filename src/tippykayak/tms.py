@@ -27,9 +27,12 @@ def _to_proj4(crs: CRS) -> str:
         warnings.simplefilter("ignore")
         return crs.to_proj4()
 
-# OGC standardised rendering pixel size, in metres (0.28 mm). morecantile stores
-# zoom levels as scale denominators; multiplying by this constant recovers the
-# ground resolution in CRS units per pixel, exactly as the OGC TMS spec defines.
+# OGC standardised rendering pixel size, in metres (0.28 mm) — the constant that
+# ties a TileMatrix's scale denominator to a ground resolution. We no longer
+# multiply by it ourselves (see ``ZoomGrid.resolution`` below): for a *geographic*
+# TMS the CRS unit is degrees, not metres, so ``scaleDenominator * 0.28 mm`` would
+# be wrong by the ~111 km-per-degree factor. morecantile's ``cellSize`` already
+# carries the resolution in the CRS's own units, which is what the tiler needs.
 STANDARDIZED_PIXEL_SIZE = 0.28e-3
 
 
@@ -43,7 +46,7 @@ class ZoomGrid:
     tile_size: int
     origin_x: float
     origin_y: float
-    resolution: float  # CRS units per pixel
+    resolution: float  # CRS units per pixel (metres for projected, degrees for geographic)
 
     @property
     def tile_span(self) -> float:
@@ -148,7 +151,11 @@ class Grid:
                 tile_size=m.tileWidth,
                 origin_x=ox,
                 origin_y=oy,
-                resolution=m.scaleDenominator * STANDARDIZED_PIXEL_SIZE,
+                # cellSize is the resolution in the CRS's own units — metres for a
+                # projected TMS, degrees for a geographic one (e.g. WorldCRS84Quad).
+                # Equals scaleDenominator * 0.28 mm for projected grids, but stays
+                # correct for geographic grids where that product would not.
+                resolution=float(m.cellSize),
             )
         return self._zoom_cache[z]
 
@@ -221,6 +228,20 @@ CUSTOM_GRIDS: dict[str, "callable"] = {
         [-3750000.0, -1950000.0, 3250000.0, 5050000.0],
         "EPSG3978",
         title="NAD83 / Canada Atlas Lambert",
+        max_zoom=18,
+    ),
+    # A *geographic* (plate carrée) tiling scheme in degrees, so the same data can
+    # be tiled un-projected for contrast with the polar/conic grids. morecantile's
+    # standard WorldCRS84Quad is a 2×1 quad at zoom 0, which PMTiles' square
+    # (2^z × 2^z) Hilbert tile IDs cannot address; a square quad can. We use the
+    # OGC:CRS84 axis order (lon, lat) — plain EPSG:4326 is lat, lon and would place
+    # the origin wrong. The extent is a 360°×360° square so the quad is clean; data
+    # only occupies the northern band and the viewer frames it via ``data_extent``.
+    "CRS84Square": lambda: Grid.custom(
+        "OGC:CRS84",
+        [-180.0, -180.0, 180.0, 180.0],
+        "CRS84Square",
+        title="Geographic (plate carrée, WGS84)",
         max_zoom=18,
     ),
 }

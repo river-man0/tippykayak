@@ -15,7 +15,6 @@ name: CI and deploy viewer to GitHub Pages
 on:
   push:
     branches:
-      - main
       - claude/tippykayak-non-webmercator-da7hns
       - claude/build-status-wfofzt
     paths:
@@ -97,12 +96,11 @@ jobs:
 
   deploy:
     needs: build
-    # Only publish from the release branches; other branches and pull requests
-    # still run test + build above, but don't redeploy the live site.
+    # Only publish from the default/release branch; other branches and pull
+    # requests still run test + build above, but don't redeploy the live site.
     if: >-
       github.event_name == 'push' &&
-      (github.ref == 'refs/heads/main' ||
-       github.ref == 'refs/heads/claude/tippykayak-non-webmercator-da7hns')
+      github.ref == 'refs/heads/claude/tippykayak-non-webmercator-da7hns'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

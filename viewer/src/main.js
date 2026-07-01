@@ -15,11 +15,13 @@ import proj4 from 'proj4';
 import { PMTiles, FileSource } from 'pmtiles';
 import { PMTilesVectorSource } from 'ol-pmtiles';
 
-const DEMOS = [
-  { label: 'Greenland · OSM', url: '../examples/greenland-3413.pmtiles' },
-  { label: 'Canada · Lambert', url: '../examples/canada-3978.pmtiles' },
-  { label: 'Arctic · Stereographic', url: '../examples/arctic-3413.pmtiles' },
-  { label: 'Arctic · LAEA', url: '../examples/arctic-3573.pmtiles' },
+// The headline demo: one dataset (Natural Earth land ≥40°N), four tiling schemes.
+// The switcher swaps the same land between projections — tippykayak's whole point.
+const PROJECTIONS = [
+  { name: 'Polar Stereographic', crs: 'EPSG:3413', url: '../examples/land-3413.pmtiles' },
+  { name: 'Polar LAEA', crs: 'EPSG:3573', url: '../examples/land-3573.pmtiles' },
+  { name: 'Canada Lambert', crs: 'EPSG:3978', url: '../examples/land-3978.pmtiles' },
+  { name: 'Geographic', crs: 'CRS84', url: '../examples/land-4326.pmtiles' },
 ];
 
 // Fallback proj defs for archives predating the embedded `proj4` metadata.
@@ -56,9 +58,10 @@ const rgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
 
 // ---- feature styling -----------------------------------------------------
 
+// Filled land basemap — brushed platinum landmasses on black.
 const LAND_STYLE = new Style({ zIndex: 0,
-  fill: new Fill({ color: 'rgba(64,96,150,0.16)' }),
-  stroke: new Stroke({ color: 'rgba(120,170,235,0.5)', width: 0.8 }) });
+  fill: new Fill({ color: 'rgba(196,204,216,0.20)' }),
+  stroke: new Stroke({ color: 'rgba(226,231,239,0.62)', width: 0.9 }) });
 const POLY_STYLE = new Style({ zIndex: 0,
   fill: new Fill({ color: 'rgba(90,150,210,0.15)' }),
   stroke: new Stroke({ color: 'rgba(110,170,255,0.7)', width: 1 }) });
@@ -70,6 +73,7 @@ const LINE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(120,
 // palette gives each class a distinct, restrained look (areas filled, lines
 // stroked, places labelled). Legend order doubles as the legend itself.
 const CLASS_STYLES = {
+  land:     { kind: 'area', fill: 'rgba(196,204,216,0.20)', stroke: 'rgba(226,231,239,0.62)', width: 0.9, z: 0, label: 'Land' },
   glacier:  { kind: 'area', fill: 'rgba(225,240,255,0.30)', stroke: 'rgba(210,232,255,0.55)', width: 0.6, z: 1, label: 'Ice / glacier' },
   water:    { kind: 'area', fill: 'rgba(58,120,200,0.40)',  stroke: 'rgba(120,180,255,0.6)',  width: 0.6, z: 2, label: 'Water' },
   wetland:  { kind: 'area', fill: 'rgba(80,160,150,0.26)',  stroke: 'rgba(120,200,180,0.5)',  width: 0.5, z: 2, label: 'Wetland' },
@@ -260,48 +264,74 @@ async function show(source, label) {
   map.getView().fit(fitExtent, { padding: [54, 30, 74, 30], maxZoom: header.maxZoom, constrainResolution: false });
 
   setMeta(`${tk.title || tk.tilematrixset} · ${tk.crs}`);
-  buildLegend(hasClasses);
+  setGrid(tk);
+  const mode = hasClasses ? 'class' : ('category' in fields ? 'category' : 'land');
+  buildLegend(mode);
   enableDrop();
 }
 
 function fail(e) { setMeta(`<span class="err">error: ${e.message}</span>`); console.error(e); }
 function setMeta(html) { $('meta').innerHTML = html; }
 
+// Compact readout of the active tiling scheme: TMS id + the zoom-0 tile span in
+// the CRS's own units (km for projected metres, ° for a geographic grid).
+function setGrid(tk) {
+  const span = tk.tile_dimension_zoom_0;
+  const geographic = /degree/i.test(tk.crs) || tk.crs === 'OGC:CRS84' || tk.epsg == null;
+  const z0 = geographic ? `${span.toFixed(0)}°` : `${(span / 1000).toLocaleString(undefined, { maximumFractionDigits: 0 })} km`;
+  $('grid').innerHTML = `<b>${tk.tilematrixset}</b><span>${tk.crs}</span><span class="z0">z0 · ${z0}</span>`;
+}
+
 // ---- UI ------------------------------------------------------------------
 
-function buildLegend(osm = false) {
-  const items = osm
-    ? Object.values(CLASS_STYLES).map((s) => {
-        const color = s.kind === 'line' ? s.stroke : (s.kind === 'point' ? s.color : s.fill);
-        return { color, label: s.label, glow: s.kind !== 'area' };
-      })
-    : Object.values(CATEGORIES).map((c) => ({ color: c.color, label: c.label, glow: true }));
+// The legend adapts to the loaded archive: OSM `class` archives list their
+// classes, category/cluster archives list their site categories, and the plain
+// land demos show a single silver "Land" swatch.
+function buildLegend(mode = 'land') {
+  let items;
+  if (mode === 'class') {
+    items = Object.values(CLASS_STYLES).map((s) => ({
+      color: s.kind === 'line' ? s.stroke : (s.kind === 'point' ? s.color : s.fill),
+      label: s.label, dot: s.kind !== 'area',
+    }));
+  } else if (mode === 'category') {
+    items = Object.values(CATEGORIES).map((c) => ({ color: c.color, label: c.label, dot: true }));
+  } else {
+    items = [{ color: 'rgba(212,218,228,0.85)', label: 'Land', dot: false }];
+  }
   $('legend').innerHTML = items
-    .map((c) => `<span class="it"><span class="sw" style="background:${c.color}${c.glow ? `;box-shadow:0 0 8px ${c.color}` : ''}"></span>${c.label}</span>`)
+    .map((c) => `<span class="it"><span class="sw${c.dot ? ' dot' : ''}" style="background:${c.color}"></span>${c.label}</span>`)
     .join('');
+  $('legend').hidden = items.length === 0;
 }
 
-function buildChips() {
-  const chips = $('chips');
-  DEMOS.forEach((d, i) => {
+// The projection switcher: one segment per tiling scheme of the shared land.
+function buildSwitcher() {
+  const wrap = $('switch');
+  PROJECTIONS.forEach((p) => {
     const b = document.createElement('button');
-    b.className = 'chip' + (i === 0 ? ' active' : '');
-    b.textContent = d.label;
-    b.onclick = () => { setActive(b); closeOpener(); show(d.url, d.label).catch(fail); };
-    chips.appendChild(b);
+    b.className = 'seg';
+    b.dataset.url = p.url;
+    b.innerHTML = `<span class="n">${p.name}</span><span class="c">${p.crs}</span>`;
+    b.onclick = () => { setActive(b); closeOpener(); show(p.url, p.name).catch(fail); };
+    wrap.appendChild(b);
   });
 }
-function setActive(btn) {
-  [...$('chips').children].forEach((c) => c.classList.toggle('active', c === btn));
-  if (btn) btn.scrollIntoView({ inline: 'center', block: 'nearest' });
+// Mark the segment for `url` active (or clear all when a custom archive loads).
+function setActive(btnOrUrl) {
+  const segs = [...$('switch').children];
+  const active = typeof btnOrUrl === 'string'
+    ? segs.find((s) => s.dataset.url === btnOrUrl)
+    : btnOrUrl;
+  segs.forEach((s) => s.classList.toggle('active', s === active));
+  if (active) active.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 function openOpener() { $('opener').hidden = false; $('url').focus(); }
 function closeOpener() { $('opener').hidden = true; }
 
 function wireUI() {
-  buildLegend();
-  buildChips();
+  buildSwitcher();
 
   $('openBtn').onclick = (e) => { e.stopPropagation(); $('opener').hidden ? openOpener() : closeOpener(); };
   document.addEventListener('click', (e) => {
@@ -324,4 +354,10 @@ function enableDrop() {
 
 wireUI();
 const fromUrl = new URLSearchParams(location.search).get('src');
-(fromUrl ? show(fromUrl, fromUrl) : show(DEMOS[0].url, DEMOS[0].label)).catch(fail);
+if (fromUrl) {
+  setActive(fromUrl); // highlights a demo segment if ?src points at one; else clears
+  show(fromUrl, fromUrl).catch(fail);
+} else {
+  setActive(PROJECTIONS[0].url);
+  show(PROJECTIONS[0].url, PROJECTIONS[0].name).catch(fail);
+}

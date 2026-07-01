@@ -23,6 +23,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
+# Extra readers used only by the example build scripts (e.g. make_arctic.py
+# reads the OSM land-polygons shapefile with pyshp). Not needed at runtime.
+examples = ["pyshp>=2.3"]
 
 [project.scripts]
 tippykayak = "tippykayak.cli:main"

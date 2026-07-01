@@ -62,10 +62,36 @@ const rgba = ([r, g, b], a) => `rgba(${r},${g},${b},${a})`;
 const LAND_STYLE = new Style({ zIndex: 0,
   fill: new Fill({ color: 'rgba(196,204,216,0.20)' }),
   stroke: new Stroke({ color: 'rgba(226,231,239,0.62)', width: 0.9 }) });
+
+// Subdued country fills — muted, desaturated tones so the map reads as countries
+// without breaking the black/silver palette. Each country hashes to one colour.
+const COUNTRY_PALETTE = [
+  [96, 120, 150], [92, 140, 132], [150, 116, 124], [128, 132, 96], [124, 110, 150],
+  [156, 132, 96], [110, 140, 110], [104, 122, 140], [140, 104, 132], [150, 140, 108],
+  [96, 128, 152], [112, 140, 120], [150, 120, 100], [126, 128, 136], [120, 120, 150],
+];
+function _hashStr(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h; }
+const _countryCache = new Map();
+function countryStyle(name) {
+  const key = name || '_';
+  let st = _countryCache.get(key);
+  if (!st) {
+    const [r, g, b] = COUNTRY_PALETTE[_hashStr(key) % COUNTRY_PALETTE.length];
+    st = new Style({ zIndex: 0,
+      fill: new Fill({ color: `rgba(${r},${g},${b},0.34)` }),
+      stroke: new Stroke({ color: 'rgba(226,231,239,0.42)', width: 0.6 }) });
+    _countryCache.set(key, st);
+  }
+  return st;
+}
 const POLY_STYLE = new Style({ zIndex: 0,
   fill: new Fill({ color: 'rgba(90,150,210,0.15)' }),
   stroke: new Stroke({ color: 'rgba(110,170,255,0.7)', width: 1 }) });
-const GRATICULE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(200,208,222,0.13)', width: 0.6 }) });
+// The conic's undefined wedge — a shaded red "no projection here" pie-slice.
+const WEDGE_STYLE = new Style({ zIndex: 0,
+  fill: new Fill({ color: 'rgba(255,74,86,0.09)' }),
+  stroke: new Stroke({ color: 'rgba(255,74,86,0.45)', width: 1.0, lineDash: [4, 4] }) });
+const GRATICULE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(206,214,228,0.22)', width: 0.65 }) });
 // Country (admin-0) boundaries — a warm silver, distinct from the cool graticule.
 const BOUNDARY_STYLE = new Style({ zIndex: 2, stroke: new Stroke({ color: 'rgba(208,200,184,0.55)', width: 0.7 }) });
 // The Arctic Circle (66.56°N) — a bright silver dashed ring.
@@ -197,7 +223,12 @@ function styleFor(feature, resolution) {
   const cls = feature.get('class');
   if (cls) return osmStyle(feature, cls, resolution);
   const type = feature.getType();
-  if (type === 'Polygon' || type === 'MultiPolygon') return feature.get('kind') === 'land' ? LAND_STYLE : POLY_STYLE;
+  if (type === 'Polygon' || type === 'MultiPolygon') {
+    const k = feature.get('kind');
+    if (k === 'country') return countryStyle(feature.get('name'));
+    if (k === 'wedge') return WEDGE_STYLE;
+    return k === 'land' ? LAND_STYLE : POLY_STYLE;
+  }
   if (type === 'LineString' || type === 'MultiLineString') {
     return KIND_LINE_STYLES[feature.get('kind')] || LINE_STYLE;
   }
@@ -309,8 +340,7 @@ function buildLegend(mode = 'land') {
     items = Object.values(CATEGORIES).map((c) => ({ color: c.color, label: c.label, dot: true }));
   } else {
     items = [
-      { color: 'rgba(212,218,228,0.9)', label: 'Land', dot: false },
-      { color: 'rgba(208,200,184,0.9)', label: 'Border', dot: false },
+      { color: 'rgba(150,140,178,0.85)', label: 'Countries', dot: false },
       { color: 'rgba(236,242,250,0.95)', label: 'Arctic Circle', dot: false },
       { color: 'rgba(255,74,86,0.95)', label: 'Antimeridian', dot: false },
     ];

@@ -204,10 +204,15 @@ class Grid:
 # EPSG:3573 — North Pole LAEA (Canada, lon₀ −100°). At 40°N the radius is ~5.40e6
 #   m, so ±5.6e6 m holds the landmass (the old ±4.89e6 edge sat at 45°N and clipped
 #   everything south of it).
-# EPSG:3978 — NAD83 / Canada Atlas Lambert (conformal conic). A square centred on
-#   the Canadian content (landmass + graticule projects to ≈ x[-3.54e6, 3.01e6],
-#   y[-0.77e6, 3.87e6]); sized to hold all of it while trimming the old extent's
-#   large empty southern margin.
+# EPSG:3978 — NAD83 / Canada Atlas Lambert (conformal conic). Centred on the NORTH
+#   POLE, which in this projection is the cone apex at (0, 4.654e6): every meridian
+#   converges there and parallels are concentric arcs around it (distance from the
+#   pole depends only on latitude). The point of centring here is to *show the
+#   projection's limitation* — the fan only spans ~324°, leaving a ~36° undefined
+#   wedge (bounded by the ±180° antimeridian) that reads as an empty pie-slice
+#   tearing the Bering Strait apart. The ±4.6e6 m square about the pole reaches down
+#   to ~49°N (keeping the Arctic, Canada and much of Russia) while cropping the
+#   grossly stretched low-latitude far side (China/Kazakhstan) opposite the centre.
 CUSTOM_GRIDS: dict[str, "callable"] = {
     "EPSG3413": lambda: Grid.custom(
         3413,
@@ -225,7 +230,7 @@ CUSTOM_GRIDS: dict[str, "callable"] = {
     ),
     "EPSG3978": lambda: Grid.custom(
         3978,
-        [-3750000.0, -1950000.0, 3250000.0, 5050000.0],
+        [-4600000.0, 54175.0, 4600000.0, 9254175.0],
         "EPSG3978",
         title="NAD83 / Canada Atlas Lambert",
         max_zoom=18,

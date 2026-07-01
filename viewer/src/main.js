@@ -22,6 +22,7 @@ const PROJECTIONS = [
   { name: 'Polar LAEA', crs: 'EPSG:3573', url: '../examples/land-3573.pmtiles' },
   { name: 'Canada Lambert', crs: 'EPSG:3978', url: '../examples/land-3978.pmtiles' },
   { name: 'Geographic', crs: 'CRS84', url: '../examples/land-4326.pmtiles' },
+  { name: 'Web Mercator', crs: 'EPSG:3857', url: '../examples/land-3857.pmtiles' },
 ];
 
 // Fallback proj defs for archives predating the embedded `proj4` metadata.

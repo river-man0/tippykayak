@@ -209,24 +209,26 @@ build("settlements.geojson", "out.pmtiles", grid,
 
 ```bash
 pip install -e '.[examples]'
-python examples/make_projections.py      # ONE land dataset → 4 tiling schemes (land-3413/3573/3978/4326)
+python examples/make_projections.py      # ONE land dataset → 5 tiling schemes (land-3413/3573/3978/4326/3857)
 python serve.py                          # range-capable static server, port 8000
 # open http://localhost:8000/viewer/index.html
 ```
 
 ![Circumpolar land re-tiled across four projections, rendered in OpenLayers](viewer/preview.png)
 
-The demo is tippykayak's whole thesis in one screen: **the same data, four tiling
+The demo is tippykayak's whole thesis in one screen: **the same data, five tiling
 schemes**. `make_projections.py` takes a single source — real **Natural Earth**
 countries clipped to latitude ≥ 40° (public domain, each filled a subdued colour),
 plus a generated lat/lon graticule, the Arctic Circle, and the red antimeridian —
-and tiles it natively onto four TileMatrixSets: **EPSG:3413** (NSIDC polar
+and tiles it natively onto five TileMatrixSets: **EPSG:3413** (NSIDC polar
 stereographic), **EPSG:3573** (North Pole LAEA), **EPSG:3978** (Canada Atlas
-Lambert, conic), and a geographic plate-carrée grid (**CRS84**). The viewer's
-projection switcher flips the identical geography between them — from a
-pole-centred disc to a flat lon/lat strip — with nothing but the embedded
-per-grid metadata. Every feature is densified before tiling, so the 40° clip
-reprojects to a smooth curve rather than a straight chord in the polar views.
+Lambert, conic), a geographic plate-carrée grid (**CRS84**), and **EPSG:3857**
+(Web Mercator) — the ubiquitous one, included precisely to show how badly it
+inflates the Arctic. The viewer's projection switcher flips the identical geography
+between them — from a pole-centred disc to a flat lon/lat strip — with nothing but
+the embedded per-grid metadata. Every feature is densified before tiling, so the
+40° clip reprojects to a smooth curve rather than a straight chord in the polar
+views.
 
 The **EPSG:3978** view is centred on the pole to *show a limitation*: a Lambert
 conic only spans ~324° of longitude, so it leaves a ~36° **undefined wedge**
@@ -247,11 +249,11 @@ per-dataset code and no hardcoded CRS table — point it at an archive in a
 projection it has never seen and it just works.
 
 The UI is a black-and-silver theme with a **projection switcher** as the hero
-control: it swaps the shared land dataset between the four tiling schemes live,
+control: it swaps the shared land dataset between the five tiling schemes live,
 while a readout shows the active CRS/TMS and zoom-0 tile span. Open an archive
 four ways:
 
-- the **projection switcher** (the four land tiling schemes),
+- the **projection switcher** (the five land tiling schemes),
 - a remote **URL** (needs CORS + HTTP Range on the host),
 - a **local `.pmtiles` file** (picker or drag-and-drop onto the map),
 - a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/land-3978.pmtiles`.
@@ -309,7 +311,7 @@ viewer/
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
-  make_projections.py one Natural Earth land clip → 4 tiling schemes (3413/3573/3978/CRS84)
+  make_projections.py one Natural Earth clip → 5 tiling schemes (3413/3573/3978/CRS84/3857)
   data/               committed Natural Earth land + boundary clips (public domain)
 tests/              pytest suite
 ```

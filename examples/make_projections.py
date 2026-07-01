@@ -20,10 +20,11 @@ straight lon/lat edges — above all the 40° clip — reproject to smooth curve
 EPSG:3978 conic the red antimeridian brackets the ~36° undefined wedge.
 
 Tiling schemes (same data, one archive each)
-    * ``EPSG:3413``   NSIDC Sea Ice Polar Stereographic North  → land-3413.pmtiles
-    * ``EPSG:3573``   North Pole LAEA (Canada / Beringia)      → land-3573.pmtiles
-    * ``EPSG:3978``   NAD83 / Canada Atlas Lambert (conic)     → land-3978.pmtiles
-    * ``CRS84Square`` Geographic plate carrée (degrees)        → land-4326.pmtiles
+    * ``EPSG:3413``     NSIDC Sea Ice Polar Stereographic North → land-3413.pmtiles
+    * ``EPSG:3573``     North Pole LAEA (Canada / Beringia)     → land-3573.pmtiles
+    * ``EPSG:3978``     NAD83 / Canada Atlas Lambert (conic)    → land-3978.pmtiles
+    * ``CRS84Square``   Geographic plate carrée (degrees)       → land-4326.pmtiles
+    * ``WebMercatorQuad`` EPSG:3857 Web Mercator               → land-3857.pmtiles
 
 Run:  python examples/make_projections.py
 """
@@ -183,6 +184,7 @@ SCHEMES = [
     ("EPSG3573", "land-3573", None),
     ("EPSG3978", "land-3978", 85.0),
     ("CRS84Square", "land-4326", None),
+    ("WebMercatorQuad", "land-3857", None),
 ]
 MAX_ZOOM = 6
 

@@ -162,6 +162,16 @@ def test_geographic_grid_tiles_across_multiple_columns(tmp_path):
     assert grid.describe()["epsg"] is None  # CRS84 has no EPSG code
 
 
+def test_data_extent_is_clamped_to_grid_bounds():
+    # A client can't frame beyond the tileable area; a conic fed global data would
+    # otherwise publish a runaway extent. Clamp keeps it within the grid bounds.
+    from tippykayak.pipeline import _clamp_extent
+
+    bounds = (-6e6, -6e6, 6e6, 6e6)
+    assert _clamp_extent((-8e6, -1e6, 2e6, 9e6), bounds) == (-6e6, -1e6, 2e6, 6e6)
+    assert _clamp_extent((-1e6, -1e6, 1e6, 1e6), bounds) == (-1e6, -1e6, 1e6, 1e6)
+
+
 def test_invalid_self_intersecting_polygon_is_repaired():
     # A bow-tie polygon is invalid; reprojection-induced invalidity is common
     # with real coastlines. The pipeline must repair rather than crash.

@@ -49,7 +49,11 @@ def build(
     for (z, col, row), layers in pyramid.items():
         encoded[(z, col, row)] = encode_tile(layers, col, row, grid.zoom(z), options.extent)
 
-    data_extent = _projected_extent(features)
+    # Clamp to the grid's own extent: a client can't frame beyond the tileable
+    # area, and for a conic fed global data the far side projects to enormous
+    # coordinates that would otherwise blow the framing up. No-op when the data
+    # already sits inside the grid (the polar/geographic cases).
+    data_extent = _clamp_extent(_projected_extent(features), grid.crs_bounds())
     write_pmtiles(
         output_path,
         encoded,
@@ -132,6 +136,21 @@ def _projected_extent(features: list[Feature]) -> tuple[float, float, float, flo
         minx, miny = min(minx, fx0), min(miny, fy0)
         maxx, maxy = max(maxx, fx1), max(maxy, fy1)
     return (minx, miny, maxx, maxy)
+
+
+def _clamp_extent(
+    extent: tuple[float, float, float, float],
+    bounds: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    """Intersect a data extent with the grid's CRS bounds (fall back to the grid
+    bounds if the two don't overlap, which shouldn't happen for real data)."""
+    minx, miny, maxx, maxy = extent
+    bminx, bminy, bmaxx, bmaxy = bounds
+    cx0, cy0 = max(minx, bminx), max(miny, bminy)
+    cx1, cy1 = min(maxx, bmaxx), min(maxy, bmaxy)
+    if cx1 <= cx0 or cy1 <= cy0:
+        return bounds
+    return (cx0, cy0, cx1, cy1)
 
 
 def _geographic_bounds(extent: tuple[float, float, float, float], grid: Grid) -> tuple[float, float, float, float]:

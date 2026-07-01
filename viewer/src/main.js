@@ -65,8 +65,20 @@ const LAND_STYLE = new Style({ zIndex: 0,
 const POLY_STYLE = new Style({ zIndex: 0,
   fill: new Fill({ color: 'rgba(90,150,210,0.15)' }),
   stroke: new Stroke({ color: 'rgba(110,170,255,0.7)', width: 1 }) });
-const GRATICULE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(125,150,205,0.16)', width: 0.7 }) });
+const GRATICULE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(200,208,222,0.13)', width: 0.6 }) });
+// Country (admin-0) boundaries — a warm silver, distinct from the cool graticule.
+const BOUNDARY_STYLE = new Style({ zIndex: 2, stroke: new Stroke({ color: 'rgba(208,200,184,0.55)', width: 0.7 }) });
+// The Arctic Circle (66.56°N) — a bright silver dashed ring.
+const ARCTIC_STYLE = new Style({ zIndex: 3, stroke: new Stroke({ color: 'rgba(236,242,250,0.72)', width: 1.2, lineDash: [6, 5] }) });
+// The antimeridian (±180°) — the one red accent.
+const ANTIMERIDIAN_STYLE = new Style({ zIndex: 4, stroke: new Stroke({ color: 'rgba(255,74,86,0.92)', width: 1.5 }) });
 const LINE_STYLE = new Style({ zIndex: 1, stroke: new Stroke({ color: 'rgba(120,200,170,0.8)', width: 1 }) });
+
+// Reference-line styles keyed by the feature's `kind`.
+const KIND_LINE_STYLES = {
+  meridian: GRATICULE_STYLE, parallel: GRATICULE_STYLE,
+  boundary: BOUNDARY_STYLE, arctic_circle: ARCTIC_STYLE, antimeridian: ANTIMERIDIAN_STYLE,
+};
 
 // ---- OSM (.osm.pbf) styling, keyed on the `class` property ----------------
 // Real OSM archives flatten everything into one layer tagged with `class`; this
@@ -187,8 +199,7 @@ function styleFor(feature, resolution) {
   const type = feature.getType();
   if (type === 'Polygon' || type === 'MultiPolygon') return feature.get('kind') === 'land' ? LAND_STYLE : POLY_STYLE;
   if (type === 'LineString' || type === 'MultiLineString') {
-    const k = feature.get('kind');
-    return k === 'parallel' || k === 'meridian' ? GRATICULE_STYLE : LINE_STYLE;
+    return KIND_LINE_STYLES[feature.get('kind')] || LINE_STYLE;
   }
   const count = feature.get('point_count') || 1;
   return count > 1 ? clusterStyle(count) : singletonStyle(feature.get('category'));
@@ -297,7 +308,12 @@ function buildLegend(mode = 'land') {
   } else if (mode === 'category') {
     items = Object.values(CATEGORIES).map((c) => ({ color: c.color, label: c.label, dot: true }));
   } else {
-    items = [{ color: 'rgba(212,218,228,0.85)', label: 'Land', dot: false }];
+    items = [
+      { color: 'rgba(212,218,228,0.9)', label: 'Land', dot: false },
+      { color: 'rgba(208,200,184,0.9)', label: 'Border', dot: false },
+      { color: 'rgba(236,242,250,0.95)', label: 'Arctic Circle', dot: false },
+      { color: 'rgba(255,74,86,0.95)', label: 'Antimeridian', dot: false },
+    ];
   }
   $('legend').innerHTML = items
     .map((c) => `<span class="it"><span class="sw${c.dot ? ' dot' : ''}" style="background:${c.color}"></span>${c.label}</span>`)

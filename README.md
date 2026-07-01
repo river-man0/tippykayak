@@ -210,29 +210,24 @@ build("settlements.geojson", "out.pmtiles", grid,
 ```bash
 pip install -e '.[examples]'
 python examples/make_projections.py      # ONE land dataset → 4 tiling schemes (land-3413/3573/3978/4326)
-python examples/make_greenland.py        # REAL OSM (Geofabrik) → greenland-3413 PMTiles
-python examples/make_canada.py           # infrastructure sites → canada-3978 PMTiles
 python serve.py                          # range-capable static server, port 8000
 # open http://localhost:8000/viewer/index.html
 ```
 
 ![Circumpolar land re-tiled across four projections, rendered in OpenLayers](viewer/preview.png)
 
-The headline demo is tippykayak's whole thesis in one screen: **the same data,
-four tiling schemes**. `make_projections.py` takes a single source — real
-**Natural Earth** land clipped to latitude ≥ 40° (public domain) — and tiles it
-natively onto four TileMatrixSets: **EPSG:3413** (NSIDC polar stereographic),
-**EPSG:3573** (North Pole LAEA), **EPSG:3978** (Canada Atlas Lambert, conic), and
-a geographic plate-carrée grid (**CRS84**). The viewer's projection switcher
-flips the identical coastlines between them — from a pole-centred disc to a flat
-lon/lat strip — with nothing but the embedded per-grid metadata.
+The demo is tippykayak's whole thesis in one screen: **the same data, four tiling
+schemes**. `make_projections.py` takes a single source — real **Natural Earth**
+land clipped to latitude ≥ 40° (public domain) — and tiles it natively onto four
+TileMatrixSets: **EPSG:3413** (NSIDC polar stereographic), **EPSG:3573** (North
+Pole LAEA), **EPSG:3978** (Canada Atlas Lambert, conic), and a geographic
+plate-carrée grid (**CRS84**). The viewer's projection switcher flips the
+identical coastlines between them — from a pole-centred disc to a flat lon/lat
+strip — with nothing but the embedded per-grid metadata.
 
-The other two demos exercise the input side: `make_greenland.py` downloads a
-[Geofabrik extract](https://download.geofabrik.de/north-america/greenland.html)
-and tiles **real OSM** coastlines, the ice sheet (`natural=glacier`), waterways
-and places onto EPSG:3413; `make_canada.py` samples ~720 synthetic infrastructure
-sites on EPSG:3978, where dense areas glow as density-coloured clusters. Open
-either from the viewer's **Open…** control.
+Other input formats and features (**OSM/Geofabrik `.osm.pbf`** ingestion, point
+**clustering**) are documented below and covered by the test suite; the shipped
+demo focuses on the one-dataset/four-projections story.
 
 ## The viewer
 
@@ -251,7 +246,7 @@ four ways:
 - the **projection switcher** (the four land tiling schemes),
 - a remote **URL** (needs CORS + HTTP Range on the host),
 - a **local `.pmtiles` file** (picker or drag-and-drop onto the map),
-- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/greenland-3413.pmtiles`.
+- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/land-3978.pmtiles`.
 
 Styling adapts to the archive: land renders as a filled silver basemap, OSM
 `class` archives get a per-class palette, and point `point_count` clusters render
@@ -307,9 +302,7 @@ viewer/
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
   make_projections.py one Natural Earth land clip → 4 tiling schemes (3413/3573/3978/CRS84)
-  make_greenland.py   real-data demo: downloads a Geofabrik .osm.pbf → EPSG:3413
-  make_canada.py      Canada demo: coastlines + categorised sites (EPSG:3978)
-  data/               committed Natural Earth land (public domain) + downloaded OSM source
+  data/               committed Natural Earth land clip (public domain)
 tests/              pytest suite
 ```
 

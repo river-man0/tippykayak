@@ -13,17 +13,11 @@ venv/
 # Node
 node_modules/
 
-# Generated GeoJSON intermediates (the make_*.py scripts rebuild these from the
-# committed source data in examples/data/). The .pmtiles archives, the committed
-# source data, and viewer/dist/* ARE tracked so the demo works straight after
-# clone — rebuild data with examples/make_arctic.py and the bundle with
+# The committed source (examples/data/arctic_land.geojson), the .pmtiles archives
+# and viewer/dist/* ARE tracked, so the demo works straight after clone — rebuild
+# the archives with examples/make_projections.py and the bundle with
 # `npm run build:viewer`.
-examples/canada.geojson
 
 # OS / editor
 .DS_Store
 *.swp
-
-# Real OSM extract downloaded by make_greenland.py (the .pmtiles artifact is
-# committed, the bulky source is not).
-examples/data/greenland-latest.osm.pbf

@@ -78,8 +78,8 @@ function countryStyle(name) {
   if (!st) {
     const [r, g, b] = COUNTRY_PALETTE[_hashStr(key) % COUNTRY_PALETTE.length];
     st = new Style({ zIndex: 0,
-      fill: new Fill({ color: `rgba(${r},${g},${b},0.34)` }),
-      stroke: new Stroke({ color: 'rgba(226,231,239,0.42)', width: 0.6 }) });
+      fill: new Fill({ color: `rgba(${r},${g},${b},0.55)` }),
+      stroke: new Stroke({ color: 'rgba(226,231,239,0.5)', width: 0.6 }) });
     _countryCache.set(key, st);
   }
   return st;

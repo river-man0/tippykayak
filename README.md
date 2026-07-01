@@ -67,9 +67,12 @@ OSM / Geofabrik     │  classify OSM tags → class/subclass via a theme (osm.p
    │  reproject every geometry into the TMS's CRS (pyproj), repairing any
    │  reprojection-induced invalidity (common with real coastlines)
    ▼
-projected features ── simplify (Douglas-Peucker, scaled per-zoom)
-   │               ── drop (size + zoom-stable dot-dropping)
-   │               ── clip to each tile (with edge buffer)
+projected features ── clip once, then split each tile into its 4 children
+   │                  (quadtree descent — work ∝ detail actually in the tile)
+   │               ── simplify per tile (Douglas-Peucker, scaled per-zoom)
+   │               ── drop (size + zoom-stable dot-dropping), sub-pixel
+   │                  polygons accumulate into placeholder "dust" squares
+   │               ── enforce per-tile budgets (bytes + features)
    ▼
 MVT per tile (mapbox-vector-tile, quantized to the tile's CRS bounds)
    │  gzip
@@ -84,12 +87,23 @@ Every decision — tile placement, simplification tolerance, feature size
 thresholds — is made in the **projected CRS units** of the chosen grid, never in
 Web Mercator. That is the whole point.
 
+The workflow borrows the ideas that make
+[tippecanoe](https://github.com/felt/tippecanoe) the reference tool for this
+job — quadtree descent, per-tile budgets, tiny-polygon dust, a data-driven
+maxzoom — each re-derived in the grid's own CRS units so they hold on polar,
+conic and geographic grids alike. The full examination is in
+[`docs/tippecanoe.md`](docs/tippecanoe.md).
+
 | Capability | tippykayak |
 | --- | --- |
-| Simplify | ✅ Douglas-Peucker, tolerance scaled to each zoom's ground resolution |
+| Simplify | ✅ Douglas-Peucker per tile, tolerance scaled to each zoom's ground resolution |
 | Drop (by size) | ✅ features smaller than ~N pixels switch on at the first zoom they're visible |
+| Polygon dust | ✅ dropped sub-pixel polygons accumulate into placeholder squares, so dense fields keep their visual mass at low zoom |
 | Drop (by density) | ✅ deterministic, zoom-stable dot-dropping for points |
 | Aggregate / cluster | ✅ grid clustering with `point_count` + sum/mean/min/max accumulation |
+| Tile budgets | ✅ hard per-tile byte + feature caps; oversized tiles shed their smallest features until they fit |
+| Auto maxzoom | ✅ `--maxzoom auto` picks the shallowest zoom that resolves the data's spacing (tippecanoe's `-zg`, in CRS units) |
+| Quadtree tiler | ✅ clip once, split tiles into their 4 children — cost proportional to local detail, ~14× faster at z11 than re-clipping per zoom |
 | Input formats | ✅ GeoJSON **and** OpenStreetMap / Geofabrik `.osm.pbf` |
 | Any TileMatrixSet | ✅ — the reason the project exists |
 
@@ -111,9 +125,19 @@ tippykayak data.geojson out.pmtiles --tms EPSG3573 --maxzoom 8
 tippykayak data.geojson out.pmtiles --tms EPSG3978 --maxzoom 8
 tippykayak data.geojson out.pmtiles --tms CRS84Square
 
+# Let the data choose the maxzoom (tippecanoe's -zg): the shallowest zoom whose
+# tile quantization still resolves the spacing of the features
+tippykayak data.geojson out.pmtiles --tms EPSG3413 --maxzoom auto
+
 # Tuning the simplify/drop behaviour
 tippykayak data.geojson out.pmtiles --tms EPSG3413 \
   --simplify-pixels 1.0 --min-feature-pixels 1.5 --point-retain 0.6
+
+# Per-tile budgets (defaults shown): oversized tiles shed their smallest
+# features until they fit. --no-polygon-dust discards sub-pixel polygons
+# outright instead of accumulating them into placeholder squares.
+tippykayak data.geojson out.pmtiles --tms EPSG3413 \
+  --max-tile-bytes 512000 --max-tile-features 200000 --no-polygon-dust
 ```
 
 ### OpenStreetMap / Geofabrik `.osm.pbf` input
@@ -285,12 +309,17 @@ npm run build:viewer
 
 The end-to-end path (GeoJSON **or OSM/Geofabrik `.osm.pbf`** →
 polar/conic/**geographic** PMTiles → OpenLayers) works and is verified (pytest
-for the tiler, clustering, OSM ingestion and the geographic grid; headless-browser
-render checks across all four projection grids). Simplify, both drop strategies,
-and **clustering aggregation** are implemented on any square-quad morecantile or
-custom TileMatrixSet — including degree-based geographic grids, whose resolution
-comes from the matrix `cellSize` rather than assuming metres. Next on the roadmap:
-FlatGeobuf input, polygon-area-aware dropping, and label-collision handling.
+for the tiler, clustering, OSM ingestion, the geographic grid and the
+tippecanoe-derived workflow; headless-browser render checks across all four
+projection grids). Simplify, both drop strategies, polygon dust, tile budgets,
+auto maxzoom and **clustering aggregation** are implemented on any square-quad
+morecantile or custom TileMatrixSet — including degree-based geographic grids,
+whose resolution comes from the matrix `cellSize` rather than assuming metres.
+The tiler descends the pyramid as a quadtree (see
+[`docs/tippecanoe.md`](docs/tippecanoe.md)), so deep zooms cost time proportional
+to the detail they contain. Next on the roadmap: streaming/external-sort
+ingestion for planet-scale inputs, FlatGeobuf input, and label-collision
+handling.
 
 ## Layout
 
@@ -299,7 +328,7 @@ src/tippykayak/
   tms.py        grid math on morecantile + custom grids (EPSG3413/3573/3978, CRS84Square)
   features.py   load GeoJSON/OSM (by extension), reproject into the grid CRS
   osm.py        read .osm.pbf (pyosmium) + theme: OSM tags → class/subclass
-  tiler.py      simplify / drop / cluster / clip → tile pyramid
+  tiler.py      quadtree descent: clip / simplify / drop / dust / cluster → tile pyramid
   aggregate.py  point clustering + attribute accumulation
   encode.py     MVT encode + gzip
   archive.py    PMTiles writer + TMS metadata
@@ -310,6 +339,8 @@ viewer/
   dist/             pre-built, CDN-free bundle (committed)
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
+docs/
+  tippecanoe.md     why tippecanoe is elegant, and how its workflow maps onto any TMS
 examples/
   make_projections.py one Natural Earth clip → 5 tiling schemes (3413/3573/3978/CRS84/3857)
   data/               committed Natural Earth land + boundary clips (public domain)

@@ -98,9 +98,10 @@ def test_load_features_dispatches_on_extension(osm_pbf):
 
 
 def test_build_pmtiles_from_osm(osm_pbf, tmp_path):
-    # A global grid (the synthetic data sits in Europe), tiled on a non-Mercator
-    # geographic TMS to prove OSM input is grid-agnostic.
-    grid = Grid.named("WorldCRS84Quad")
+    # A geographic grid (the synthetic data sits in Europe), tiled in degrees to
+    # prove OSM input is grid-agnostic. CRS84Square is the PMTiles-addressable
+    # (square 2^z quad) geographic scheme — plain WorldCRS84Quad is 2×1 at z0.
+    grid = Grid.named("CRS84Square")
     out = tmp_path / "osm.pmtiles"
     result = build(osm_pbf, out, grid, TileOptions(layer="osm", min_zoom=0, max_zoom=6))
 
@@ -112,7 +113,7 @@ def test_build_pmtiles_from_osm(osm_pbf, tmp_path):
         reader = Reader(MmapSource(f))
         meta = reader.metadata()
         # The grid's CRS travels with the archive (no CRS field in the header).
-        assert meta["tippykayak"]["tilematrixset"] == "WorldCRS84Quad"
+        assert meta["tippykayak"]["tilematrixset"] == "CRS84Square"
         assert meta["tippykayak"]["proj4"].startswith("+proj=longlat")
         # The single OSM layer declares the synthesised class/subclass fields.
         fields = meta["vector_layers"][0]["fields"]

@@ -127,6 +127,41 @@ def test_size_dropping_thins_low_zoom(geojson_file):
     assert count_at(4) >= count_at(0)
 
 
+def test_geographic_grid_resolution_is_in_degrees():
+    # A geographic TMS measures in degrees, not metres. The tiler must use the
+    # matrix cellSize (degrees) — multiplying a scale denominator by 0.28 mm would
+    # be wrong by the ~111 km-per-degree factor and collapse everything into one
+    # tile. z0 of the square CRS84 grid spans 360°, so 360/256 ≈ 1.406°/px.
+    grid = Grid.named("CRS84Square")
+    assert grid.zoom(0).resolution == pytest.approx(360.0 / 256.0)
+    assert grid.zoom(0).tile_span == pytest.approx(360.0)
+
+
+def test_geographic_grid_tiles_across_multiple_columns(tmp_path):
+    # Circumpolar land spans all longitudes; on the geographic grid it must land
+    # in many tiles across several zooms (the bug tiled it all into one).
+    land = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"kind": "land"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-170, 45], [170, 45], [170, 80], [-170, 80], [-170, 45]]],
+                },
+            }
+        ],
+    }
+    src = tmp_path / "land.geojson"
+    src.write_text(json.dumps(land))
+    grid = Grid.named("CRS84Square")
+    result = build(src, tmp_path / "geo.pmtiles", grid,
+                   TileOptions(layer="land", min_zoom=0, max_zoom=4))
+    assert result.tile_count > 1
+    assert grid.describe()["epsg"] is None  # CRS84 has no EPSG code
+
+
 def test_invalid_self_intersecting_polygon_is_repaired():
     # A bow-tie polygon is invalid; reprojection-induced invalidity is common
     # with real coastlines. The pipeline must repair rather than crash.

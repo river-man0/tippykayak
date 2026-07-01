@@ -107,9 +107,9 @@ tippykayak --list-tms
 tippykayak data.geojson out.pmtiles --tms EPSG3413 --maxzoom 8
 tippykayak data.geojson out.pmtiles --tms EPSG3573 --maxzoom 8
 
-# Canada Atlas Lambert (EPSG:3978, conic) / plain WGS84
+# Canada Atlas Lambert (EPSG:3978, conic) / geographic plate carrée (degrees)
 tippykayak data.geojson out.pmtiles --tms EPSG3978 --maxzoom 8
-tippykayak data.geojson out.pmtiles --tms WorldCRS84Quad
+tippykayak data.geojson out.pmtiles --tms CRS84Square
 
 # Tuning the simplify/drop behaviour
 tippykayak data.geojson out.pmtiles --tms EPSG3413 \
@@ -208,34 +208,31 @@ build("settlements.geojson", "out.pmtiles", grid,
 ## Try the demo
 
 ```bash
-pip install -e .
+pip install -e '.[examples]'
+python examples/make_projections.py      # ONE land dataset → 4 tiling schemes (land-3413/3573/3978/4326)
 python examples/make_greenland.py        # REAL OSM (Geofabrik) → greenland-3413 PMTiles
 python examples/make_canada.py           # infrastructure sites → canada-3978 PMTiles
-python examples/make_arctic.py           # REAL OSM circumpolar land + ice → arctic-3413 + arctic-3573
 python serve.py                          # range-capable static server, port 8000
 # open http://localhost:8000/viewer/index.html
 ```
 
-![Canadian infrastructure on EPSG:3978, rendered in OpenLayers](viewer/preview.png)
+![Circumpolar land re-tiled across four projections, rendered in OpenLayers](viewer/preview.png)
 
-The demos are **real polar data**. `make_greenland.py` downloads the
-[Geofabrik Greenland extract](https://download.geofabrik.de/north-america/greenland.html)
-(~26 MB `.osm.pbf`) and tiles its real coastlines, the ice sheet
-(`natural=glacier`), lakes, waterways and settlements onto **EPSG:3413** (NSIDC
-polar stereographic, centred so Greenland sits upright). `make_arctic.py` then
-draws the whole **circumpolar Arctic** on both north-pole grids — **EPSG:3413**
-and **EPSG:3573** — from the OpenStreetMap [land-polygons
-product](https://osmdata.openstreetmap.de/) (real coastlines, reprojected and
-clipped to lat ≥ 40) plus the Greenland ice sheet (`natural=glacier`), so the
-projections that exist to show the Arctic actually show it. The viewer styles
-each OSM `class` distinctly and labels places. Rounding it out, `make_canada.py`
-samples ~720 synthetic infrastructure sites on **EPSG:3978** (Canada Atlas
-Lambert), where dense areas glow as density-coloured clusters that split apart as
-you zoom in.
+The headline demo is tippykayak's whole thesis in one screen: **the same data,
+four tiling schemes**. `make_projections.py` takes a single source — real
+**Natural Earth** land clipped to latitude ≥ 40° (public domain) — and tiles it
+natively onto four TileMatrixSets: **EPSG:3413** (NSIDC polar stereographic),
+**EPSG:3573** (North Pole LAEA), **EPSG:3978** (Canada Atlas Lambert, conic), and
+a geographic plate-carrée grid (**CRS84**). The viewer's projection switcher
+flips the identical coastlines between them — from a pole-centred disc to a flat
+lon/lat strip — with nothing but the embedded per-grid metadata.
 
-> OpenStreetMap has no **sea** ice (it is seasonal satellite data, e.g. the NSIDC
-> Sea Ice Index); only *land* ice — ice sheets and glaciers — is mapped in OSM,
-> so that is what the demos show.
+The other two demos exercise the input side: `make_greenland.py` downloads a
+[Geofabrik extract](https://download.geofabrik.de/north-america/greenland.html)
+and tiles **real OSM** coastlines, the ice sheet (`natural=glacier`), waterways
+and places onto EPSG:3413; `make_canada.py` samples ~720 synthetic infrastructure
+sites on EPSG:3978, where dense areas glow as density-coloured clusters. Open
+either from the viewer's **Open…** control.
 
 ## The viewer
 
@@ -246,17 +243,20 @@ tile grid (origin + zoom-0 span), the CRS extent, and the layer list. No
 per-dataset code and no hardcoded CRS table — point it at an archive in a
 projection it has never seen and it just works.
 
-Open an archive four ways:
+The UI is a black-and-silver theme with a **projection switcher** as the hero
+control: it swaps the shared land dataset between the four tiling schemes live,
+while a readout shows the active CRS/TMS and zoom-0 tile span. Open an archive
+four ways:
 
-- the **demo** quick-picks (Canada Lambert + Arctic ×2),
+- the **projection switcher** (the four land tiling schemes),
 - a remote **URL** (needs CORS + HTTP Range on the host),
 - a **local `.pmtiles` file** (picker or drag-and-drop onto the map),
-- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/canada-3978.pmtiles`.
+- a **`?src=…`** query parameter, e.g. `viewer/index.html?src=../examples/greenland-3413.pmtiles`.
 
-Styling adapts to geometry type — polygons filled, lines stroked. Point
-`point_count` clusters render as soft, density-coloured **glow** blobs (gently
-sized, no labels); at the deepest zoom, individual sites show a **category glyph**.
-The pre-built, CDN-free bundle lives in `viewer/dist/`; rebuild with
+Styling adapts to the archive: land renders as a filled silver basemap, OSM
+`class` archives get a per-class palette, and point `point_count` clusters render
+as soft, density-coloured **glow** blobs with a **category glyph** at the deepest
+zoom. The pre-built, CDN-free bundle lives in `viewer/dist/`; rebuild with
 `npm run build:viewer`.
 
 > **Why not `python -m http.server`?** PMTiles is read with HTTP **Range**
@@ -279,18 +279,19 @@ npm run build:viewer
 ## Status
 
 The end-to-end path (GeoJSON **or OSM/Geofabrik `.osm.pbf`** →
-polar/geographic/conic PMTiles → OpenLayers) works and is verified (pytest for
-the tiler, clustering, and OSM ingestion; headless-browser render checks for the
-viewer across the Canada and Arctic grids). Simplify, both drop strategies, and
-**clustering aggregation** are implemented, on any morecantile or custom
-TileMatrixSet. Next on the roadmap: FlatGeobuf input, polygon-area-aware
-dropping, and label-collision handling in the viewer.
+polar/conic/**geographic** PMTiles → OpenLayers) works and is verified (pytest
+for the tiler, clustering, OSM ingestion and the geographic grid; headless-browser
+render checks across all four projection grids). Simplify, both drop strategies,
+and **clustering aggregation** are implemented on any square-quad morecantile or
+custom TileMatrixSet — including degree-based geographic grids, whose resolution
+comes from the matrix `cellSize` rather than assuming metres. Next on the roadmap:
+FlatGeobuf input, polygon-area-aware dropping, and label-collision handling.
 
 ## Layout
 
 ```
 src/tippykayak/
-  tms.py        grid math on morecantile + custom grids (EPSG3413/3573/3978)
+  tms.py        grid math on morecantile + custom grids (EPSG3413/3573/3978, CRS84Square)
   features.py   load GeoJSON/OSM (by extension), reproject into the grid CRS
   osm.py        read .osm.pbf (pyosmium) + theme: OSM tags → class/subclass
   tiler.py      simplify / drop / cluster / clip → tile pyramid
@@ -305,10 +306,10 @@ viewer/
   index.html        loads the bundle
 serve.py            range-capable static server (PMTiles needs byte serving)
 examples/
-  make_greenland.py real-data demo: downloads a Geofabrik .osm.pbf → EPSG:3413
-  make_canada.py    Canada demo: coastlines + categorised sites (EPSG:3978)
-  make_arctic.py    Arctic demo: real OSM circumpolar land + ice (3413/3573)
-  data/             committed Natural Earth land (Canada) + downloaded OSM sources
+  make_projections.py one Natural Earth land clip → 4 tiling schemes (3413/3573/3978/CRS84)
+  make_greenland.py   real-data demo: downloads a Geofabrik .osm.pbf → EPSG:3413
+  make_canada.py      Canada demo: coastlines + categorised sites (EPSG:3978)
+  data/               committed Natural Earth land (public domain) + downloaded OSM source
 tests/              pytest suite
 ```
 

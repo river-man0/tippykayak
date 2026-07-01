@@ -18,17 +18,12 @@ node_modules/
 # source data, and viewer/dist/* ARE tracked so the demo works straight after
 # clone — rebuild data with examples/make_arctic.py and the bundle with
 # `npm run build:viewer`.
-examples/arctic.geojson
 examples/canada.geojson
 
 # OS / editor
 .DS_Store
 *.swp
 
-# Real OSM extracts/products downloaded by the demo build scripts (the .pmtiles
-# artifacts are committed, the bulky sources are not). The Greenland extract is
-# shared by make_greenland.py and make_arctic.py; the land polygons feed the
-# circumpolar coastline in make_arctic.py.
+# Real OSM extract downloaded by make_greenland.py (the .pmtiles artifact is
+# committed, the bulky source is not).
 examples/data/greenland-latest.osm.pbf
-examples/data/simplified-land-polygons-3857.zip
-examples/data/simplified-land-polygons-complete-3857/

@@ -6,7 +6,7 @@
 to latitude ≥ 40° and lightly simplified (~0.01°). Each polygon keeps its country
 `name`, which the viewer hashes to a subdued fill colour. This is the single
 shared source for `examples/make_projections.py`, which tiles it onto four
-TileMatrixSets (EPSG:3413 / 3573 / 3978 and the geographic `CRS84Square`).
+TileMatrixSets (EPSG:3413 / 3573 / 3978, the geographic `CRS84Square`, and EPSG:3857 Web Mercator).
 
 Natural Earth is in the **public domain** — no permission or attribution
 required, though credit is appreciated. Source:

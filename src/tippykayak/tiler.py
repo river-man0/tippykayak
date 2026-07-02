@@ -231,35 +231,31 @@ def _tile_points(grid: Grid, points: list[Feature], options: TileOptions, pyrami
     if not points:
         return
     agg = options.aggregation
+    retain = options.point_retain_per_zoom
+    # The dot-drop gate hashes each point once; every zoom then compares that
+    # same stable value against its own threshold.
+    units = None if agg.enabled or retain >= 1.0 else [_stable_unit(p) for p in points]
+
     for z in range(options.min_zoom, options.max_zoom + 1):
         zg = grid.zoom(z)
         buffer_crs = options.buffer_pixels * zg.resolution
+        # Zoom-stable dot-dropping: keep points whose stable value is below
+        # retain**(max_zoom - z). The threshold only grows as z increases, so a
+        # point visible at z is guaranteed visible at every z+1.
+        threshold = 1.0 if units is None else retain ** (options.max_zoom - z)
         zoom_points = [
-            p for p in points
-            if p.forced_min_zoom is None or z >= p.forced_min_zoom
+            p for i, p in enumerate(points)
+            if (p.forced_min_zoom is None or z >= p.forced_min_zoom)
+            and (units is None or units[i] < threshold)
         ]
         if agg.enabled:
             cell = agg.distance_pixels * zg.resolution
             rendered = cluster_points(zoom_points, cell, agg)
         else:
-            rendered = [p for p in zoom_points if _point_survives(p, z, options)]
+            rendered = zoom_points
         for feat in rendered:
             for (col, row), clipped in _split_into_tiles(feat.geometry, zg, buffer_crs):
                 pyramid[(z, col, row)][options.layer].append((clipped, feat.properties))
-
-
-def _point_survives(feat: Feature, z: int, options: TileOptions) -> bool:
-    """Deterministic, zoom-stable dot-dropping.
-
-    Each point gets a stable value in [0, 1). At zoom ``z`` we keep points whose
-    value is below ``retain ** (max_zoom - z)``. Because the threshold only grows
-    as z increases, a point visible at z is guaranteed visible at every z+1.
-    """
-    retain = options.point_retain_per_zoom
-    if retain >= 1.0:
-        return True
-    threshold = retain ** (options.max_zoom - z)
-    return _stable_unit(feat) < threshold
 
 
 def _stable_unit(feat: Feature) -> float:
@@ -270,6 +266,18 @@ def _stable_unit(feat: Feature) -> float:
 
 def _split_into_tiles(geom: BaseGeometry, zg: ZoomGrid, buffer_crs: float):
     """Yield ((col, row), clipped_geometry) for every tile the geometry touches."""
+    # Fast path for single points (the overwhelmingly common point case): the
+    # containing tile is pure arithmetic, no GEOS clipping required.
+    if geom.geom_type == "Point":
+        col, row = zg.clamp(*zg.tile_for(geom.x, geom.y))
+        tminx, tminy, tmaxx, tmaxy = zg.tile_bounds(col, row)
+        if (
+            tminx - buffer_crs <= geom.x <= tmaxx + buffer_crs
+            and tminy - buffer_crs <= geom.y <= tmaxy + buffer_crs
+        ):
+            yield (col, row), geom
+        return
+
     minx, miny, maxx, maxy = geom.bounds
     # Rows increase downward, so the top edge (maxy) is the minimum row and the
     # bottom edge (miny) is the maximum row.

@@ -56,7 +56,7 @@ def write_pmtiles(
         # Non-WebMercator clients read this block to know how to place the tiles.
         "tippykayak": tippykayak_meta,
         **{
-            k: grid.describe()[k]
+            k: tippykayak_meta[k]
             for k in ("crs", "tile_origin_upper_left_x", "tile_origin_upper_left_y", "tile_dimension_zoom_0")
         },
     }

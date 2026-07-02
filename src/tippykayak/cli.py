@@ -95,7 +95,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
 
     if args.list_tms:
         for name in Grid.list_named():
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if not args.input or not args.output:
-        build_parser().error("input and output are required (unless --list-tms)")
+        parser.error("input and output are required (unless --list-tms)")
 
     grid = Grid.named(args.tms)
 
@@ -117,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.bbox:
         parts = [float(v) for v in args.bbox.split(",")]
         if len(parts) != 4:
-            build_parser().error("--bbox expects MINLON,MINLAT,MAXLON,MAXLAT")
+            parser.error("--bbox expects MINLON,MINLAT,MAXLON,MAXLAT")
         bbox = (parts[0], parts[1], parts[2], parts[3])
 
     if args.maxzoom.lower() == "auto":
@@ -126,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             max_zoom = int(args.maxzoom)
         except ValueError:
-            build_parser().error("--maxzoom expects an integer or 'auto'")
+            parser.error("--maxzoom expects an integer or 'auto'")
 
     aggregation = Aggregation(
         enabled=args.cluster,

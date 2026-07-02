@@ -32,16 +32,20 @@ def encode_tile(
     max_features: int = 0,
     max_bytes: int = 0,
 ) -> bytes:
+    quantize_bounds = zg.tile_bounds(col, row)
     total = sum(len(feats) for feats in layers.values())
-    if max_features and total > max_features:
-        layers = _keep_most_important(layers, max_features)
-        total = max_features
+    budget = min(total, max_features) if max_features else total
 
-    data = _encode(layers, zg.tile_bounds(col, row), extent)
-    while max_bytes and len(data) > max_bytes and total > 1:
-        total //= 2
-        layers = _keep_most_important(layers, total)
-        data = _encode(layers, zg.tile_bounds(col, row), extent)
+    # Rank features at most once per tile (importance never changes); every
+    # budget below is just a shallower slice of the same ordering.
+    ranked = _rank_by_importance(layers) if budget < total else None
+
+    data = _encode(layers if budget == total else _keep(layers, ranked, budget), quantize_bounds, extent)
+    while max_bytes and len(data) > max_bytes and budget > 1:
+        if ranked is None:
+            ranked = _rank_by_importance(layers)
+        budget //= 2
+        data = _encode(_keep(layers, ranked, budget), quantize_bounds, extent)
     return data
 
 
@@ -71,15 +75,14 @@ def _encode(
     return gzip.compress(raw)
 
 
-def _keep_most_important(layers: dict[str, list[tuple]], budget: int) -> dict[str, list[tuple]]:
-    """Keep the ``budget`` features with the largest projected footprint.
+def _rank_by_importance(layers: dict[str, list[tuple]]) -> list[tuple[str, int]]:
+    """(layer, index) pairs ordered most-important-first.
 
     Importance is the longer side of the geometry's envelope — big shapes carry
     the map, sub-pixel clutter goes first. The sort is stable, so equally sized
-    features (all points, notably) are kept in draw order, and survivors are
-    re-emitted in their original order to leave layer stacking untouched.
+    features (all points, notably) rank in draw order.
     """
-    ranked = sorted(
+    return sorted(
         (
             (name, idx)
             for name, feats in layers.items()
@@ -87,6 +90,12 @@ def _keep_most_important(layers: dict[str, list[tuple]], budget: int) -> dict[st
         ),
         key=lambda ni: -_footprint(layers[ni[0]][ni[1]][0]),
     )
+
+
+def _keep(
+    layers: dict[str, list[tuple]], ranked: list[tuple[str, int]], budget: int
+) -> dict[str, list[tuple]]:
+    """The ``budget`` most important features, re-emitted in original draw order."""
     keep = set(ranked[:budget])
     return {
         name: [f for idx, f in enumerate(feats) if (name, idx) in keep]

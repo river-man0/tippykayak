@@ -278,7 +278,7 @@ def test_max_tile_bytes_sheds_smallest_features_until_tiles_fit(tmp_path):
 
 
 def test_budget_sheds_smallest_shapes_first():
-    from tippykayak.encode import _keep_most_important
+    from tippykayak.encode import _keep, _rank_by_importance
 
     from shapely.geometry import box as sbox
 
@@ -289,7 +289,7 @@ def test_budget_sheds_smallest_shapes_first():
             (sbox(0, 0, 10, 10), {"id": "mid"}),
         ]
     }
-    kept = _keep_most_important(layers, 2)
+    kept = _keep(layers, _rank_by_importance(layers), 2)
     ids = [props["id"] for _, props in kept["t"]]
     # The two largest survive, in their original draw order.
     assert ids == ["big", "mid"]

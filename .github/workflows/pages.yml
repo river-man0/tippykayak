@@ -4,8 +4,8 @@ name: CI and deploy viewer to GitHub Pages
 # builds the OpenLayers viewer bundle, assembles a static site (viewer + demo
 # PMTiles), and publishes it to GitHub Pages.
 #
-# The deploy job only publishes from the release branches (see `if:` below);
-# pushes to other branches still run tests and build so CI stays green.
+# The deploy job only publishes from main (see `if:` below); pushes to other
+# branches still run tests and build so CI stays green.
 #
 # One-time setup: repo Settings → Pages → Build and deployment → Source =
 # "GitHub Actions". After that, every push that touches the code, the viewer or
@@ -15,8 +15,7 @@ name: CI and deploy viewer to GitHub Pages
 on:
   push:
     branches:
-      - claude/tippykayak-non-webmercator-da7hns
-      - claude/build-status-wfofzt
+      - main
     paths:
       - src/**
       - tests/**
@@ -96,12 +95,12 @@ jobs:
 
   deploy:
     needs: build
-    # Only publish from the default/release branch — via push or a manual run
-    # from the Actions tab. Other branches and pull requests still run
-    # test + build above, but don't redeploy the live site.
+    # Only publish from main — via push or a manual run from the Actions tab.
+    # Other branches and pull requests still run test + build above, but don't
+    # redeploy the live site.
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      github.ref == 'refs/heads/claude/tippykayak-non-webmercator-da7hns'
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

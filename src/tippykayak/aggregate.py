@@ -66,12 +66,21 @@ class Aggregation:
     weight_property: str | None = None
 
 
+def _xy(feat: Feature) -> tuple[float, float]:
+    """A representative coordinate, skipping GEOS for plain points."""
+    geom = feat.geometry
+    if geom.geom_type == "Point":
+        return geom.x, geom.y
+    p = geom.representative_point()
+    return p.x, p.y
+
+
 def cluster_points(points: list[Feature], cell_size: float, agg: Aggregation) -> list[Feature]:
     """Cluster ``points`` on a square grid of ``cell_size`` (CRS units)."""
     buckets: dict[tuple[int, int], list[Feature]] = defaultdict(list)
     for feat in points:
-        p = feat.geometry.representative_point()
-        key = (math.floor(p.x / cell_size), math.floor(p.y / cell_size))
+        x, y = _xy(feat)
+        key = (math.floor(x / cell_size), math.floor(y / cell_size))
         buckets[key].append(feat)
     # Deterministic output order, independent of input ordering.
     return [_merge(buckets[k], agg) for k in sorted(buckets)]
@@ -87,20 +96,19 @@ def _weight(feat: Feature, prop: str | None) -> float:
 
 
 def _merge(members: list[Feature], agg: Aggregation) -> Feature:
-    pts = [m.geometry.representative_point() for m in members]
+    pts = [_xy(m) for m in members]
     weights = [_weight(m, agg.weight_property) for m in members]
     total = sum(weights) or float(len(members))
-    cx = sum(p.x * w for p, w in zip(pts, weights)) / total
-    cy = sum(p.y * w for p, w in zip(pts, weights)) / total
+    cx = sum(x * w for (x, _), w in zip(pts, weights)) / total
+    cy = sum(y * w for (_, y), w in zip(pts, weights)) / total
     centroid = Point(cx, cy)
 
     # Representative attributes come from the member nearest the centre of mass,
     # so the kept name/label is stable and central rather than order-dependent.
     rep = min(
-        members,
-        key=lambda m: (m.geometry.representative_point().x - cx) ** 2
-        + (m.geometry.representative_point().y - cy) ** 2,
-    )
+        zip(members, pts),
+        key=lambda mp: (mp[1][0] - cx) ** 2 + (mp[1][1] - cy) ** 2,
+    )[0]
     props = dict(rep.properties)
     props[agg.count_property] = len(members)
 

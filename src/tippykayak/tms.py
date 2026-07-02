@@ -27,15 +27,6 @@ def _to_proj4(crs: CRS) -> str:
         warnings.simplefilter("ignore")
         return crs.to_proj4()
 
-# OGC standardised rendering pixel size, in metres (0.28 mm) — the constant that
-# ties a TileMatrix's scale denominator to a ground resolution. We no longer
-# multiply by it ourselves (see ``ZoomGrid.resolution`` below): for a *geographic*
-# TMS the CRS unit is degrees, not metres, so ``scaleDenominator * 0.28 mm`` would
-# be wrong by the ~111 km-per-degree factor. morecantile's ``cellSize`` already
-# carries the resolution in the CRS's own units, which is what the tiler needs.
-STANDARDIZED_PIXEL_SIZE = 0.28e-3
-
-
 @dataclass(frozen=True)
 class ZoomGrid:
     """Everything needed to map a projected coordinate to a tile at one zoom."""

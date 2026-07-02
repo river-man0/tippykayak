@@ -96,10 +96,11 @@ jobs:
 
   deploy:
     needs: build
-    # Only publish from the default/release branch; other branches and pull
-    # requests still run test + build above, but don't redeploy the live site.
+    # Only publish from the default/release branch — via push or a manual run
+    # from the Actions tab. Other branches and pull requests still run
+    # test + build above, but don't redeploy the live site.
     if: >-
-      github.event_name == 'push' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/claude/tippykayak-non-webmercator-da7hns'
     runs-on: ubuntu-latest
     environment:
